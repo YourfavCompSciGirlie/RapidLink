@@ -21,4 +21,4 @@ insert into storage.buckets (id, name, public)
 values ('rapidlink-media', 'rapidlink-media', false)
 on conflict (id) do update set public = false;
 
--- The service-role key is used only by Next.js route handlers. No anonymous writes are allowed.
+-- The service-role key is used only by protected Vercel Functions. No anonymous writes are allowed.

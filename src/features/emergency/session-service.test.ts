@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEMO_COORDINATES } from './config';
 import { createInitialState } from './fixtures';
-import { applyEmergencyAction } from './session-service';
+import { applyEmergencyAction, createSession, sessionService } from './session-service';
 import type { EmergencyAction } from './types';
 
 const location = { ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' as const };
@@ -29,6 +29,19 @@ describe('emergency session reducer', () => {
     expect(services.every((service) => service === 'police' || service === 'ambulance')).toBe(true);
   });
 
+  it.each(['police', 'ambulance', 'fire'] as const)('routes a Ga-Rankuwa %s request to local on-duty responders', (service) => {
+    let state = createInitialState();
+    const incidentId = `incident-garankuwa-${service}`;
+    state = apply(state, { id: `create-${service}`, type: 'create-incident', payload: { incidentId, service, location } });
+    state = apply(state, { id: `submit-${service}`, type: 'submit-incident', payload: { incidentId } });
+    const incident = state.incidents.find((item) => item.id === incidentId);
+    const offers = state.offers.filter((offer) => offer.incidentId === incidentId);
+    expect(incident?.stationId).toBe('station-garankuwa');
+    expect(incident?.deliveryState).toBe('sent');
+    expect(offers).toHaveLength(2);
+    expect(offers.every((offer) => state.employees.find((employee) => employee.id === offer.employeeId)?.stationId === 'station-garankuwa')).toBe(true);
+  });
+
   it('applies an action id only once', () => {
     const event: EmergencyAction = { id: 'one-action', type: 'create-incident', payload: { incidentId: 'incident-one', service: 'fire', location } };
     const once = apply(createInitialState(), event);
@@ -46,5 +59,31 @@ describe('emergency session reducer', () => {
     state = apply(state, { id: 'accept-second', type: 'accept-offer', payload: { offerId: second!.id } });
     expect(state.incidents[0]?.assignedEmployeeId).toBe(first!.employeeId);
     expect(state.offers.find((offer) => offer.id === second!.id)?.status).toBe('closed');
+  });
+
+  it('preserves actions appended while synchronization is already running', async () => {
+    let remoteState = createInitialState();
+    let version = 0;
+    const synchronizedTypes: EmergencyAction['type'][] = [];
+    const record = () => ({
+      id: 'session-queue', code: 'QUEUE1', state: remoteState, version,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      if (String(input) === '/api/sessions') return { ok: true, status: 200, json: async () => record() } as Response;
+      const event = JSON.parse(String(init?.body)) as EmergencyAction;
+      synchronizedTypes.push(event.type);
+      remoteState = applyEmergencyAction(remoteState, event);
+      version += 1;
+      return { ok: true, status: 200, json: async () => record() } as Response;
+    });
+
+    await createSession('QUEUE1');
+    sessionService.createIncident({ incidentId: 'incident-queue', service: 'police', location });
+    sessionService.submitIncident('incident-queue');
+
+    await vi.waitFor(() => expect(synchronizedTypes).toEqual(['create-incident', 'submit-incident']));
+    expect(remoteState.offers).toHaveLength(2);
+    vi.restoreAllMocks();
   });
 });

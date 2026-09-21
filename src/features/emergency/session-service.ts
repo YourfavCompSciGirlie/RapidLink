@@ -1,4 +1,4 @@
-import { createInitialState } from './fixtures';
+import { createInitialState } from './fixtures.js';
 import type {
   AcceptResult,
   AttendanceEntry,
@@ -12,7 +12,7 @@ import type {
   ServiceType,
   SessionRecord,
   SyncStatus,
-} from './types';
+} from './types.js';
 
 export const ACTIVE_SESSION_KEY = 'rapidlink-active-session-v2';
 const CHANNEL_NAME = 'rapidlink-session-events-v2';
@@ -182,10 +182,11 @@ const uploadQueuedMedia = async (code: string, event: EmergencyAction): Promise<
   if (event.type !== 'add-information') return event;
   const attachments = await Promise.all(event.payload.attachments.map(async (attachment) => {
     if (!attachment.dataUrl.startsWith('data:')) return attachment;
-    const blob = await fetch(attachment.dataUrl).then((response) => response.blob());
-    const form = new FormData();
-    form.append('file', new File([blob], attachment.name, { type: attachment.mimeType }));
-    const response = await fetch(`/api/sessions/${code}/attachments`, { method: 'POST', body: form });
+    const response = await fetch(`/api/sessions/${code}/attachments`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: attachment.name, mimeType: attachment.mimeType, dataUrl: attachment.dataUrl }),
+    });
     if (!response.ok) return attachment;
     const uploaded = await response.json() as { storagePath: string; url: string };
     return { ...attachment, dataUrl: uploaded.url, storagePath: uploaded.storagePath };
@@ -210,11 +211,12 @@ export async function flushPending(code = activeCode()) {
   try {
     let queue = readQueue(code);
     while (queue.length) {
-      const nextAction = await uploadQueuedMedia(code, queue[0]);
+      const queuedAction = queue[0];
+      const nextAction = await uploadQueuedMedia(code, queuedAction);
       const response = await fetch(`/api/sessions/${code}/actions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(nextAction) });
       if (!response.ok) { remoteAvailable = response.status !== 503; break; }
       const record = await response.json() as SessionRecord;
-      queue = queue.slice(1);
+      queue = readQueue(code).filter((event) => event.id !== queuedAction.id);
       writeQueue(code, queue);
       remoteAvailable = true;
       writeLocal(code, mergePending(record.state, queue));

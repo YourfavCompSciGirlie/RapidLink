@@ -1,5 +1,3 @@
-'use client';
-
 import { Download, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -9,7 +7,6 @@ export function InstallPrompt() {
   const [event, setEvent] = useState<InstallEvent | null>(null);
   const [dismissed, setDismissed] = useState(true);
   useEffect(() => {
-    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
     setDismissed(window.localStorage.getItem('rapidlink-install-dismissed') === 'yes');
     const capture = (value: Event) => { value.preventDefault(); setEvent(value as InstallEvent); setDismissed(false); };
     window.addEventListener('beforeinstallprompt', capture);

@@ -19,7 +19,7 @@ export const serviceLabel = (service: ServiceType) =>
   service === 'sos' ? 'SOS · Police and Ambulance' : EMERGENCY_SERVICES.find((item) => item.id === service)?.label ?? service;
 
 export const DEMO_COORDINATES = {
-  latitude: -25.7479,
-  longitude: 28.2293,
+  latitude: -25.6042,
+  longitude: 28.0053,
   accuracy: 35,
 } as const;

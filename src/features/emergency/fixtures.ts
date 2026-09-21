@@ -1,4 +1,4 @@
-import type { EmergencyState, Employee, Station } from './types';
+import type { EmergencyState, Employee, Station } from './types.js';
 
 const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
 
@@ -17,6 +17,14 @@ export const seedStations: Station[] = [
     area: 'Mamelodi',
     latitude: -25.7149,
     longitude: 28.3377,
+    services: ['police', 'ambulance', 'fire'],
+  },
+  {
+    id: 'station-garankuwa',
+    name: 'Ga-Rankuwa Response Station',
+    area: 'Ga-Rankuwa',
+    latitude: -25.6042,
+    longitude: 28.0053,
     services: ['police', 'ambulance', 'fire'],
   },
   {
@@ -39,12 +47,22 @@ export const seedEmployees: Employee[] = [
   { id: 'employee-p03', employeeNumber: 'P-1210', name: 'Tshepo', surname: 'Masango', phone: '071 555 0103', service: 'police', stationId: 'station-mamelodi', active: true },
   { id: 'employee-a03', employeeNumber: 'A-2112', name: 'Karabo', surname: 'Mabena', phone: '071 555 0203', service: 'ambulance', stationId: 'station-mamelodi', active: true },
   { id: 'employee-f03', employeeNumber: 'F-3350', name: 'Lesedi', surname: 'Seabi', phone: '071 555 0303', service: 'fire', stationId: 'station-mamelodi', active: false },
+  { id: 'employee-gp01', employeeNumber: 'P-1304', name: 'Boitumelo', surname: 'Kgomo', phone: '071 555 0401', service: 'police', stationId: 'station-garankuwa', active: true },
+  { id: 'employee-gp02', employeeNumber: 'P-1311', name: 'Thato', surname: 'Motsamai', phone: '071 555 0402', service: 'police', stationId: 'station-garankuwa', active: true },
+  { id: 'employee-ga01', employeeNumber: 'A-2204', name: 'Keitumetse', surname: 'Modise', phone: '071 555 0403', service: 'ambulance', stationId: 'station-garankuwa', active: true },
+  { id: 'employee-ga02', employeeNumber: 'A-2210', name: 'Oratile', surname: 'Seema', phone: '071 555 0404', service: 'ambulance', stationId: 'station-garankuwa', active: true },
+  { id: 'employee-gf01', employeeNumber: 'F-3406', name: 'Kabelo', surname: 'Mosiane', phone: '071 555 0405', service: 'fire', stationId: 'station-garankuwa', active: true },
+  { id: 'employee-gf02', employeeNumber: 'F-3412', name: 'Onthatile', surname: 'Moagi', phone: '071 555 0406', service: 'fire', stationId: 'station-garankuwa', active: true },
 ];
 
 export const createInitialState = (): EmergencyState => {
   const now = new Date().toISOString();
   const date = now.slice(0, 10);
-  const onDutyIds = new Set(['employee-p01', 'employee-p02', 'employee-a01', 'employee-a02', 'employee-f01', 'employee-f02', 'employee-p03', 'employee-a03']);
+  const onDutyIds = new Set([
+    'employee-p01', 'employee-p02', 'employee-a01', 'employee-a02', 'employee-f01', 'employee-f02',
+    'employee-p03', 'employee-a03',
+    'employee-gp01', 'employee-gp02', 'employee-ga01', 'employee-ga02', 'employee-gf01', 'employee-gf02',
+  ]);
 
   return {
     version: 2,

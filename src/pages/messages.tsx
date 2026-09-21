@@ -1,8 +1,6 @@
-'use client';
-
 import { ExternalLink, Inbox, MessageSquareText } from 'lucide-react';
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
@@ -49,11 +47,11 @@ export default function ResponderMessagesPage() {
                   <span className={`w-fit rounded-full px-3 py-1 text-sm font-bold ${offer.status === 'open' ? 'bg-blue-100 text-[#003172]' : offer.status === 'accepted' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100 text-slate-700'}`}>{offer.status}</span>
                 </div>
                 <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-800 shadow-inner"><p><strong>{serviceLabel(incident.service)} request</strong></p><p>Approximate area: {station?.area ?? 'Location pending'}</p><p>Reported: {new Date(incident.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p><p className="break-all">Reference: {incident.reference}</p></div>
-                <Button asChild className="mt-4 w-full sm:w-auto"><Link href={`/responder/offers/${offer.id}`} target="_blank" rel="noopener noreferrer">Open response link <ExternalLink className="h-4 w-4" /></Link></Button>
+                <Button asChild className="mt-4 w-full sm:w-auto"><Link to={`/responder/offers/${offer.id}`} target="_blank" rel="noopener noreferrer">Open response link <ExternalLink className="h-4 w-4" /></Link></Button>
               </article>
             );
           })}
-          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable a location or choose Pretoria Central, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link href="/client">Open client interface</Link></Button></div>}
+          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable your location or choose the Ga-Rankuwa demo location, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link to="/client">Open client interface</Link></Button></div>}
         </div>
       </div>
     </main>

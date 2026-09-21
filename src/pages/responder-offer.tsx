@@ -1,9 +1,6 @@
-'use client';
-
 import { AlertTriangle, CheckCircle2, Clock3, MapPin, Navigation, Phone, ShieldAlert, UserRound, XCircle } from 'lucide-react';
-import { useParams } from 'next/navigation';
-import Image from 'next/image';
 import { useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
@@ -104,7 +101,7 @@ export default function ResponderOfferPage() {
               <div className="mt-5 grid grid-cols-2 gap-3"><Button asChild><a href={`tel:${state.profile.phone.replace(/\s/g, '')}`}><Phone className="h-4 w-4" /> Call client</a></Button><Button asChild variant="outline"><a href={incident.location ? `https://www.google.com/maps/dir/?api=1&destination=${incident.location.latitude},${incident.location.longitude}` : '#'} target="_blank" rel="noreferrer"><Navigation className="h-4 w-4" /> Navigate</a></Button></div>
             </div>
 
-            <div className="elevated-surface mt-5 bg-white p-5 sm:rounded-2xl"><h3 className="text-lg font-extrabold text-[#003172]">Additional information</h3>{details.length ? <div className="mt-3 space-y-4">{details.map((info) => <div key={info.id} className="rounded-xl bg-slate-50 p-4 shadow-inner"><p className="font-semibold text-slate-900">{info.happened || 'No description supplied.'}</p>{info.landmark && <p className="mt-1 text-sm text-slate-700">Access: {info.landmark}</p>}<div className="mt-3 grid gap-3 sm:grid-cols-2">{info.attachments.map((attachment) => attachment.kind === 'photo' ? <Image key={attachment.id} src={attachment.dataUrl} alt="Client attachment" width={600} height={400} unoptimized className="max-h-56 w-full rounded-lg object-cover" /> : <audio key={attachment.id} controls src={attachment.dataUrl} className="w-full" />)}</div></div>)}</div> : <p className="mt-2 text-sm text-slate-600">No additional information has been sent. New updates will appear here.</p>}</div>
+            <div className="elevated-surface mt-5 bg-white p-5 sm:rounded-2xl"><h3 className="text-lg font-extrabold text-[#003172]">Additional information</h3>{details.length ? <div className="mt-3 space-y-4">{details.map((info) => <div key={info.id} className="rounded-xl bg-slate-50 p-4 shadow-inner"><p className="font-semibold text-slate-900">{info.happened || 'No description supplied.'}</p>{info.landmark && <p className="mt-1 text-sm text-slate-700">Access: {info.landmark}</p>}<div className="mt-3 grid gap-3 sm:grid-cols-2">{info.attachments.map((attachment) => attachment.kind === 'photo' ? <img key={attachment.id} src={attachment.dataUrl} alt="Client attachment" width={600} height={400} className="max-h-56 w-full rounded-lg object-cover" /> : <audio key={attachment.id} controls src={attachment.dataUrl} className="w-full" />)}</div></div>)}</div> : <p className="mt-2 text-sm text-slate-600">No additional information has been sent. New updates will appear here.</p>}</div>
 
             <div className="mt-5"><h3 className="text-lg font-extrabold text-[#003172]">Incident progress</h3><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{(['accepted', 'en_route', 'arrived', 'completed'] as IncidentProgress[]).map((progress) => <Button key={progress} variant={incident.progress === progress ? 'primary' : 'outline'} onClick={() => updateProgress(progress)} disabled={incident.progress === 'completed' && progress !== 'completed'}>{progress === 'en_route' ? 'En route' : progress.charAt(0).toUpperCase() + progress.slice(1)}</Button>)}</div></div>
           </section>

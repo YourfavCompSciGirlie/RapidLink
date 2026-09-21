@@ -1,5 +1,3 @@
-'use client';
-
 import { CheckCircle2, Clock3, Contact, Info, MapPin, Undo2, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 

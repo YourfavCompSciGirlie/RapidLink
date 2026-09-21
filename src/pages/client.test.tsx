@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmergencyProvider } from '@/features/emergency/emergency-context';
 import { readState } from '@/features/emergency/session-service';
 
-import ClientPage from './page';
+import ClientPage from './client';
 
 describe('client activation safety window', () => {
   beforeEach(() => {

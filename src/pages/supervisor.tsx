@@ -1,8 +1,6 @@
-'use client';
-
 import { CalendarCheck, Pencil, Plus, Search, ShieldCheck, UserX } from 'lucide-react';
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { AccessibleModal } from '@/components/accessible-modal';
 import { ServiceNotice } from '@/components/service-notice';
@@ -13,7 +11,7 @@ import { useEmergency } from '@/features/emergency/emergency-context';
 import { employeeBusy, employeeDuty, sessionService } from '@/features/emergency/session-service';
 import type { Employee, ServiceType } from '@/features/emergency/types';
 
-const SUPERVISOR_STATION_ID = 'station-central';
+const SUPERVISOR_STATION_ID = 'station-garankuwa';
 
 export default function SupervisorPage() {
   const { state, refresh, reset } = useEmergency();
@@ -45,7 +43,7 @@ export default function SupervisorPage() {
       <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
         <header className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div><p className="flex items-center gap-2 text-sm font-bold text-slate-600"><ShieldCheck className="h-4 w-4" /> Supervisor · {station.name}</p><h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#003172]">Employee management</h1><p className="mt-2 max-w-2xl text-base text-slate-700">Manage this station’s staff records. Adding an employee does not mark them on duty.</p></div>
-          <div className="flex flex-wrap gap-2 sm:shrink-0"><Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add employee</Button><Button asChild variant="outline"><Link href="/supervisor/attendance"><CalendarCheck className="h-4 w-4" /> Daily attendance</Link></Button><Button variant="ghost" onClick={reset}>Reset demonstration</Button></div>
+          <div className="flex flex-wrap gap-2 sm:shrink-0"><Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add employee</Button><Button asChild variant="outline"><Link to="/supervisor/attendance"><CalendarCheck className="h-4 w-4" /> Daily attendance</Link></Button><Button variant="ghost" onClick={reset}>Reset demonstration</Button></div>
         </header>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_220px]">

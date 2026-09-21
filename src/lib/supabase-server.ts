@@ -1,4 +1,4 @@
-import type { EmergencyState, SessionRecord } from '@/features/emergency/types';
+import type { EmergencyState, SessionRecord } from '../features/emergency/types.js';
 
 interface SessionRow {
   id: string;
@@ -10,7 +10,7 @@ interface SessionRow {
   expires_at: string;
 }
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
+const url = (process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL)?.replace(/\/$/, '');
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const supabaseConfigured = Boolean(url && serviceKey);
@@ -76,12 +76,14 @@ export async function compareAndSwapSession(record: SessionRecord, state: Emerge
   return rows[0] ? toRecord(rows[0]) : null;
 }
 
-export async function uploadAttachment(code: string, file: File) {
+export async function uploadAttachment(code: string, file: { name: string; type: string; bytes: Uint8Array }) {
   if (!supabaseConfigured) throw new Error('Supabase is not configured');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
   const path = `${code}/${crypto.randomUUID()}-${safeName}`;
+  const payload = new Uint8Array(file.bytes.byteLength);
+  payload.set(file.bytes);
   const upload = await fetch(`${url}/storage/v1/object/rapidlink-media/${path}`, {
-    method: 'POST', headers: headers({ 'content-type': file.type, 'x-upsert': 'false' }), body: await file.arrayBuffer(),
+    method: 'POST', headers: headers({ 'content-type': file.type, 'x-upsert': 'false' }), body: new Blob([payload.buffer], { type: file.type }),
   });
   if (!upload.ok) throw new Error(`Attachment upload failed: ${upload.status}`);
   const signed = await fetch(`${url}/storage/v1/object/sign/rapidlink-media/${path}`, {

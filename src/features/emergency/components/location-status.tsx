@@ -65,7 +65,7 @@ export function LocationStatus({
           {loading ? 'Finding location…' : location ? 'Refresh location' : 'Enable location'}
         </Button>
         <Button type="button" variant="ghost" className="min-h-12 text-[#B91C1C] hover:bg-red-50 hover:text-[#991B1B]" onClick={() => onPreset({ ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' })}>
-          <MapPin className="h-4 w-4" /> Use Pretoria Central
+          <MapPin className="h-4 w-4" /> Use Ga-Rankuwa demo location
         </Button>
       </div>
     </section>

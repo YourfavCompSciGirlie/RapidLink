@@ -2,7 +2,7 @@
 
 RapidLink is an installable emergency-response prototype. A client starts a request, eligible on-duty responders receive an offer, and the first responder to accept owns the incident. A supervisor manages responder records and attendance.
 
-The application is a single Next.js PWA. It works as a complete local demonstration without external services and can use Supabase to synchronize an isolated room across devices.
+The application is a React single-page PWA built with Vite, TypeScript and Tailwind CSS. It works as a complete local demonstration without external services and can use Supabase to synchronize an isolated room across devices. Protected writes run through small Vercel Functions in `/api`.
 
 ## Run locally
 
@@ -14,12 +14,14 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), create a room, and use the Client, Responder and Supervisor cards. Separate tabs in the same browser continue to work if the network is disconnected.
+Open [http://localhost:5173](http://localhost:5173), create a room, and use the Client, Responder and Supervisor cards. Separate tabs in the same browser continue to work if the network is disconnected.
+
+The plain Vite development server uses the local-only fallback because it does not run Vercel Functions. Use `vercel dev` when you need to exercise the Supabase-backed API locally, or test cross-device synchronization on the deployed preview.
 
 ## Demo flow
 
 1. Create a room on `/`.
-2. Open the Client interface and enable location or use the Pretoria Central preset.
+2. Open the Client interface and enable location or use the Ga-Rankuwa demo location.
 3. Press SOS or choose a service. The request is transmitted after the five-second undo window.
 4. Open Responder Messages on another tab or scan its QR code on another device.
 5. Open an offer and accept it.
@@ -33,23 +35,23 @@ The Supervisor interface controls employee records and attendance. Reset demonst
 Create a Supabase project and run [`supabase/migrations/001_rapidlink_sessions.sql`](supabase/migrations/001_rapidlink_sessions.sql) in its SQL editor. Add these values to `.env.local` and the Vercel project:
 
 ```bash
-NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+VITE_APP_URL=https://your-project.vercel.app
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-The service-role key must remain server-only. All remote writes pass through Next.js route handlers. If Supabase is unavailable or not configured, rooms fall back to local-only operation.
+The service-role key must remain server-only. All remote writes pass through Vercel Functions; only the URL and anonymous key are exposed to Vite. If Supabase is unavailable or not configured, rooms fall back to local-only operation.
 
 ## PWA and offline behavior
 
-The production build exposes a web manifest, install icons, an offline fallback and a service worker. Open the deployed HTTPS site, choose Install when prompted, and visit each role once before intentionally going offline. Actions are applied locally and queued in order; they synchronize when connectivity returns.
+The Vite PWA build generates the web manifest and service worker, precaches the application shell and hashed assets, and retains the designed offline route. Open the deployed HTTPS site and choose Install when prompted. Actions are applied locally and queued in order; they synchronize when connectivity returns.
 
 Cross-device synchronization requires connectivity. Offline demonstrations work across tabs on the same installed device.
 
 ## Deployment
 
-Import the repository into Vercel, add the environment variables above, and deploy. No root-directory override or separate backend deployment is required.
+Import the repository into Vercel, select the Vite framework preset, add the environment variables above, and deploy. No root-directory override or separate backend deployment is required; Vercel deploys the functions in `/api` with the SPA.
 
 ```bash
 npm run typecheck

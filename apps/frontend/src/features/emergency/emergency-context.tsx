@@ -22,7 +22,7 @@ export function EmergencyProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setState(readState());
+    setState(mockEmergencyService.recoverUnavailableIncidents());
     setOnline(navigator.onLine);
     setReady(true);
     const unsubscribe = mockEmergencyService.subscribe(setState);

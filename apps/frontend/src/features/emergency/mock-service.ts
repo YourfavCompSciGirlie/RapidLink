@@ -56,10 +56,9 @@ export const isAttendanceActive = (entry: AttendanceEntry | undefined, at = Date
   );
 
 export const employeeDuty = (state: EmergencyState, employeeId: string) => {
-  const entries = state.attendance
+  return state.attendance
     .filter((item) => item.employeeId === employeeId)
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  return isAttendanceActive(entries[0]);
+    .some((entry) => isAttendanceActive(entry));
 };
 
 export const employeeBusy = (state: EmergencyState, employeeId: string, excludeIncidentId?: string) =>
@@ -68,6 +67,17 @@ export const employeeBusy = (state: EmergencyState, employeeId: string, excludeI
       incident.id !== excludeIncidentId &&
       incident.assignedEmployeeId === employeeId &&
       incident.progress !== 'completed',
+  );
+
+const eligibleEmployeesForStation = (state: EmergencyState, incident: Incident, stationId: string) =>
+  state.employees.filter(
+    (employee) =>
+      employee.stationId === stationId &&
+      (employee.service === incident.service || (incident.service === 'sos' && (employee.service === 'police' || employee.service === 'ambulance'))) &&
+      employee.active &&
+      !incident.declinedEmployeeIds.includes(employee.id) &&
+      employeeDuty(state, employee.id) &&
+      !employeeBusy(state, employee.id, incident.id),
   );
 
 const distanceKm = (a: CapturedLocation, latitude: number, longitude: number) => {
@@ -84,13 +94,7 @@ const distanceKm = (a: CapturedLocation, latitude: number, longitude: number) =>
 const createOffers = (state: EmergencyState, incident: Incident): EmergencyState => {
   const station = state.stations.find((item) => item.id === incident.stationId);
   if (!station) return state;
-  const eligible = state.employees.filter(
-    (employee) =>
-      employee.stationId === station.id &&
-      (employee.service === incident.service || (incident.service === 'sos' && (employee.service === 'police' || employee.service === 'ambulance'))) &&
-      employee.active &&
-      employeeDuty(state, employee.id),
-  );
+  const eligible = eligibleEmployeesForStation(state, incident, station.id);
   if (!eligible.length) {
     return {
       ...state,
@@ -201,14 +205,20 @@ export const mockEmergencyService = {
           ),
         };
       }
-      const station = state.stations
+      const candidates = state.stations
         .filter((item) =>
           incident.service === 'sos'
             ? item.services.includes('police') && item.services.includes('ambulance')
             : item.services.includes(incident.service),
         )
         .map((item) => ({ item, distance: distanceKm(incident.location!, item.latitude, item.longitude) }))
-        .sort((a, b) => a.distance - b.distance)[0]?.item;
+        .sort((a, b) => a.distance - b.distance);
+      const stationWithResponders = candidates.find(({ item }) => {
+        const eligible = eligibleEmployeesForStation(state, incident, item.id);
+        if (incident.service !== 'sos') return eligible.length > 0;
+        return eligible.some((employee) => employee.service === 'police') && eligible.some((employee) => employee.service === 'ambulance');
+      })?.item;
+      const station = stationWithResponders ?? candidates.find(({ item }) => eligibleEmployeesForStation(state, incident, item.id).length > 0)?.item ?? candidates[0]?.item;
       if (!station) {
         return {
           ...state,
@@ -294,7 +304,7 @@ export const mockEmergencyService = {
     shiftEnd: string;
     choice: AttendanceChoice;
   }) {
-    return mutate((state) => {
+    const next = mutate((state) => {
       const updatedAt = now();
       const existing = state.attendance.find(
         (item) => item.employeeId === input.employeeId && item.date === input.date,
@@ -312,6 +322,27 @@ export const mockEmergencyService = {
         audit: [...state.audit, { id: id('audit'), type: 'attendance', message: `${input.employeeId} marked ${input.choice}`, createdAt: updatedAt }],
       };
     });
+    next.incidents
+      .filter((incident) => incident.deliveryState === 'no_responders' && !incident.assignedEmployeeId)
+      .forEach((incident) => this.submitIncident(incident.id));
+    return readState();
+  },
+
+  recoverUnavailableIncidents() {
+    const state = readState();
+    state.incidents
+      .filter((incident) => incident.deliveryState === 'no_responders' && !incident.assignedEmployeeId)
+      .forEach((incident) => {
+        const hasAvailableStation = state.stations.some(
+          (station) =>
+            (incident.service === 'sos'
+              ? station.services.includes('police') && station.services.includes('ambulance')
+              : station.services.includes(incident.service)) &&
+            eligibleEmployeesForStation(state, incident, station.id).length > 0,
+        );
+        if (hasAvailableStation) this.submitIncident(incident.id);
+      });
+    return readState();
   },
 
   endShift(employeeId: string) {

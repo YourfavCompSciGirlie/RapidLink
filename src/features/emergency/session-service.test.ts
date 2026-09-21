@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEMO_COORDINATES } from './config';
 import { createInitialState } from './fixtures';
 import { applyEmergencyAction, createSession, sessionService } from './session-service';
 import type { EmergencyAction } from './types';
 
-const location = { ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' as const };
+const location = { latitude: -25.6042, longitude: 28.0053, accuracy: 35, capturedAt: new Date().toISOString(), source: 'browser' as const };
 const apply = (state: ReturnType<typeof createInitialState>, event: EmergencyAction) => applyEmergencyAction(state, event);
 
 describe('emergency session reducer', () => {

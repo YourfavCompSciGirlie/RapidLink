@@ -88,6 +88,7 @@ export const createInitialState = (): EmergencyState => {
       id: 'client-demo',
       name: 'Naledi',
       surname: 'Mokoena',
+      idNumber: '900101 5800 08 7',
       phone: '072 555 0147',
       nextOfKin: { name: 'Refilwe Mokoena', relationship: 'Sister', phone: '073 555 0191' },
     },

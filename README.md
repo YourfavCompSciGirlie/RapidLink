@@ -21,7 +21,7 @@ The plain Vite development server uses the local-only fallback because it does n
 ## Demo flow
 
 1. Create a room on `/`.
-2. Open the Client interface and enable location or use the Ga-Rankuwa demo location.
+2. Open the Client interface and enable location.
 3. Press SOS or choose a service. The request is transmitted after the five-second undo window.
 4. Open Responder Messages on another tab or scan its QR code on another device.
 5. Open an offer and accept it.

@@ -51,7 +51,7 @@ export default function ResponderMessagesPage() {
               </article>
             );
           })}
-          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable your location or choose the Ga-Rankuwa demo location, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link to="/client">Open client interface</Link></Button></div>}
+          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable location, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link to="/client">Open client interface</Link></Button></div>}
         </div>
       </div>
     </main>

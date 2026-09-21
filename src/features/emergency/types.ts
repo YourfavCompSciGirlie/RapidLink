@@ -18,13 +18,14 @@ export interface CapturedLocation {
   longitude: number;
   accuracy: number;
   capturedAt: string;
-  source: 'browser' | 'demo';
+  source: 'browser';
 }
 
 export interface ClientProfile {
   id: string;
   name: string;
   surname: string;
+  idNumber?: string;
   phone: string;
   nextOfKin?: { name: string; relationship: string; phone: string };
 }

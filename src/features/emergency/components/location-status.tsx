@@ -3,7 +3,6 @@
 import { LocateFixed, MapPin, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { DEMO_COORDINATES } from '../config';
 import type { CapturedLocation } from '../types';
 
 export function getBrowserLocation(): Promise<CapturedLocation> {
@@ -40,32 +39,32 @@ export function LocationStatus({
   loading,
   error,
   onEnable,
-  onPreset,
 }: {
   location: CapturedLocation | null;
   loading: boolean;
   error: string;
   onEnable: () => void;
-  onPreset: (location: CapturedLocation) => void;
 }) {
   return (
-    <section aria-labelledby="location-heading" className="elevated-surface rounded-2xl bg-white px-4 py-4 text-center">
-      <h2 id="location-heading" className="text-lg font-extrabold text-[#003172]">
-        {location ? 'Location ready' : 'Location not enabled'}
-      </h2>
-      <p className="mt-1 max-w-md text-sm font-medium leading-5 text-slate-600">
-        {location
-          ? `Accuracy about ${Math.round(location.accuracy)} m · captured ${new Date(location.capturedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-          : 'Enable location before an emergency for faster station matching.'}
-      </p>
-      {error && <p className="mt-2 max-w-md text-sm font-semibold text-red-700" role="alert">{error}</p>}
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Button type="button" variant="subtle" className="min-h-12" onClick={onEnable} disabled={loading}>
+    <section aria-labelledby="location-heading" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+      <div className="flex items-start gap-3">
+        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${location ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+          <MapPin className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 id="location-heading" className="font-bold text-slate-950">{location ? 'Location ready' : 'Enable your location'}</h2>
+          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+            {location
+              ? `±${Math.round(location.accuracy)} m · ${new Date(location.capturedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+              : 'Used to find the closest response station.'}
+          </p>
+        </div>
+      </div>
+      {error && <p className="mt-3 text-sm font-medium text-red-700" role="alert">{error}</p>}
+      <div className="mt-3">
+        <Button type="button" variant="subtle" className="min-h-11 w-full px-3" onClick={onEnable} disabled={loading}>
           {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-          {loading ? 'Finding location…' : location ? 'Refresh location' : 'Enable location'}
-        </Button>
-        <Button type="button" variant="ghost" className="min-h-12 text-[#B91C1C] hover:bg-red-50 hover:text-[#991B1B]" onClick={() => onPreset({ ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' })}>
-          <MapPin className="h-4 w-4" /> Use Ga-Rankuwa demo location
+          {loading ? 'Finding…' : location ? 'Refresh' : 'Enable'}
         </Button>
       </div>
     </section>

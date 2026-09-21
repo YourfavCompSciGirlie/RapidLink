@@ -1,8 +1,7 @@
-import { CheckCircle2, Clock3, Contact, Info, MapPin, Undo2, UserRound } from 'lucide-react';
+import { Camera, Check, CheckCircle2, Clock3, Contact, FileText, IdCard, Info, MapPin, Mic, Phone, Undo2, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AccessibleModal } from '@/components/accessible-modal';
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { ActiveIncidentPanel } from '@/features/emergency/components/active-incident-panel';
 import { AdditionalInfoForm } from '@/features/emergency/components/additional-info-form';
@@ -19,6 +18,12 @@ type ClientModal = 'arming' | 'prompt' | 'information' | 'status' | 'accepted' |
 
 const emptyDraft: IncidentDraft = { happened: '', landmark: '', photo: null, audio: null, dirty: false };
 const LOCATION_KEY = 'rapidlink-last-location-v1';
+const progressSteps = [
+  { id: 'waiting', label: 'Sent' },
+  { id: 'accepted', label: 'Accepted' },
+  { id: 'en_route', label: 'En route' },
+  { id: 'arrived', label: 'Arrived' },
+] as const;
 
 export default function ClientPage() {
   const { state, online, ready, refresh } = useEmergency();
@@ -196,58 +201,16 @@ export default function ClientPage() {
     return 'Sending request…';
   }, [activeIncident]);
 
+  const progressIndex = activeIncident
+    ? progressSteps.findIndex((step) => step.id === activeIncident.progress)
+    : -1;
+
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
-      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Offline — this device will save the workflow and synchronize after reconnection.</div>}
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-9">
-        <header>
-          <p className="text-sm font-bold text-slate-600">Client emergency request</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#003172] sm:text-4xl">What help do you need?</h1>
-          <p className="mt-2 max-w-2xl text-base font-medium leading-6 text-slate-700">One tap begins a five-second safety countdown. You can add details after the request is sent.</p>
-        </header>
-
-        <section className="mt-7 text-center" aria-labelledby="sos-heading">
-          <h2 id="sos-heading" className="text-xl font-extrabold text-[#003172]">Immediate combined response</h2>
-          <p className="mx-auto mt-1 max-w-md text-sm font-semibold text-slate-600">SOS immediately requests both police and ambulance support.</p>
-          <div className="mt-6 py-3">
-            <SosButton
-              active={activeIncident?.service === 'sos'}
-              pulsing={activeIncident?.service === 'sos' && pulsingId === activeIncident.id}
-              disabled={Boolean(activeIncident) || Boolean(pendingActivation)}
-              onActivate={() => activate('sos')}
-            />
-          </div>
-        </section>
-
-        <div className="mt-7">
-          <LocationStatus location={location} loading={locationLoading} error={locationError} onEnable={() => void requestLocation()} onPreset={saveLocation} />
-        </div>
-
-        <section aria-labelledby="services-heading" className="mt-7">
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-            <div>
-              <h2 id="services-heading" className="text-xl font-extrabold text-slate-950">Choose an emergency service</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-600">The selected service turns red as the request starts.</p>
-            </div>
-            {activeIncident && <span className="shrink-0 rounded-full bg-red-100 px-3 py-1.5 text-sm font-bold text-red-800">Request active</span>}
-          </div>
-          <div className="mt-6 flex flex-wrap justify-center gap-5 py-3 sm:gap-7">
-            {EMERGENCY_SERVICES.map((service) => (
-              <EmergencyButton
-                key={service.id}
-                service={service}
-                active={activeIncident?.service === service.id}
-                pulsing={activeIncident?.service === service.id && pulsingId === activeIncident.id}
-                disabled={Boolean(activeIncident) || Boolean(pendingActivation)}
-                onActivate={() => activate(service.id)}
-              />
-            ))}
-          </div>
-        </section>
-
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      {!online && <div className="bg-amber-700 px-4 py-2.5 text-center text-sm font-semibold text-white" role="status">Offline · changes are saved on this device.</div>}
+      <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6 sm:py-8">
         {activeIncident && (
-          <div className="-mx-4 mt-8 sm:mx-0">
+          <div className="mb-5 overflow-hidden rounded-2xl">
             <ActiveIncidentPanel
               incident={activeIncident}
               station={station}
@@ -259,24 +222,79 @@ export default function ClientPage() {
           </div>
         )}
 
-        {completedIncident && <section className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0" /><div><p className="text-sm font-bold">{completedIncident.reference}</p><h2 className="mt-1 text-xl font-extrabold">Incident completed</h2><p className="mt-1 text-sm font-semibold">The {serviceLabel(completedIncident.service).toLowerCase()} response has been closed. You can start another request if needed.</p></div></div></section>}
+        <section className="relative rounded-3xl bg-white px-4 py-7 text-center shadow-[0_16px_40px_rgba(15,23,42,0.08)] sm:px-6 sm:py-9" aria-labelledby="emergency-actions-heading">
+          <h1 id="emergency-actions-heading" className="sr-only">Request emergency help</h1>
+          <div className="py-2">
+            <SosButton
+              active={activeIncident?.service === 'sos'}
+              pulsing={!activeIncident || (activeIncident.service === 'sos' && pulsingId === activeIncident.id)}
+              disabled={Boolean(activeIncident) || Boolean(pendingActivation)}
+              onActivate={() => activate('sos')}
+            />
+          </div>
+          <p className="mt-6 text-base font-bold text-slate-950">Press for immediate help</p>
+          <p className="mt-1 text-sm text-slate-500">Police and ambulance · 5 seconds to cancel</p>
+        </section>
 
-        <section className="mt-8 pt-6" aria-labelledby="saved-details-heading">
-          <h2 id="saved-details-heading" className="text-lg font-extrabold text-[#003172]">Saved emergency details</h2>
+        <div className="mt-5">
+          <LocationStatus location={location} loading={locationLoading} error={locationError} onEnable={() => void requestLocation()} />
+        </div>
+
+        <section className="mt-6" aria-labelledby="service-options-heading">
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Specific response</p>
+            <h2 id="service-options-heading" className="mt-1 text-lg font-bold text-[#003172]">Choose a service</h2>
+          </div>
+          <div className="mx-auto mt-5 flex max-w-72 flex-wrap justify-center gap-4 sm:max-w-[21rem] sm:gap-5">
+            {EMERGENCY_SERVICES.map((service) => (
+              <EmergencyButton
+                key={service.id}
+                service={service}
+                active={activeIncident?.service === service.id}
+                pulsing={activeIncident?.service === service.id && pulsingId === activeIncident.id}
+                disabled={Boolean(activeIncident) || Boolean(pendingActivation)}
+                onActivate={() => activate(service.id)}
+              />
+            ))}
+          </div>
+          {activeIncident && <p className="mt-4 text-center text-sm font-semibold text-red-700">An emergency request is active.</p>}
+        </section>
+
+        {completedIncident && <section className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="text-xs font-semibold">{completedIncident.reference}</p><h2 className="mt-0.5 font-bold">Incident completed</h2><p className="mt-1 text-sm">The {serviceLabel(completedIncident.service).toLowerCase()} response is closed.</p></div></div></section>}
+
+        <section className="mt-7 pb-4" aria-labelledby="saved-details-heading">
+          <h2 id="saved-details-heading" className="text-lg font-bold text-[#003172]">Saved emergency details</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="flex gap-3 rounded-xl bg-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.10)]"><UserRound className="h-5 w-5 text-[#003172]" /><div><p className="font-bold text-slate-950">{state.profile.name} {state.profile.surname}</p><p className="text-sm text-slate-600">{state.profile.phone}</p></div></div>
-            <div className="flex gap-3 rounded-xl bg-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.10)]"><Contact className="h-5 w-5 text-[#003172]" /><div><p className="font-bold text-slate-950">Emergency contact</p><p className="text-sm text-slate-600">{state.profile.nextOfKin?.name} · {state.profile.nextOfKin?.phone}</p></div></div>
+            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-[#003172]"><UserRound className="h-5 w-5" /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your details</p><h3 className="font-bold text-slate-950">{state.profile.name} {state.profile.surname}</h3></div>
+              </div>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div className="flex items-start gap-3"><IdCard className="mt-0.5 h-4 w-4 text-slate-400" /><div><dt className="text-xs text-slate-500">ID number</dt><dd className="font-medium text-slate-800">{state.profile.idNumber ?? 'Not added'}</dd></div></div>
+                <div className="flex items-start gap-3"><Phone className="mt-0.5 h-4 w-4 text-slate-400" /><div><dt className="text-xs text-slate-500">Phone number</dt><dd className="font-medium text-slate-800">{state.profile.phone}</dd></div></div>
+              </dl>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-[#003172]"><Contact className="h-5 w-5" /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next of kin</p><h3 className="font-bold text-slate-950">{state.profile.nextOfKin?.name ?? 'Not added'}</h3></div>
+              </div>
+              <dl className="mt-4 text-sm">
+                <div className="flex items-start gap-3"><Phone className="mt-0.5 h-4 w-4 text-slate-400" /><div><dt className="text-xs text-slate-500">Phone number</dt><dd className="font-medium text-slate-800">{state.profile.nextOfKin?.phone ?? 'Not added'}</dd></div></div>
+              </dl>
+            </article>
           </div>
         </section>
 
       </div>
 
-      <AccessibleModal open={modal === 'arming'} title="Sending emergency request" description="Use this safety window if the alert was activated by mistake." onClose={undoActivation}>
+      <AccessibleModal open={modal === 'arming'} title="Sending alert" description="Cancel now if this was a mistake." onClose={undoActivation}>
         <div className="rounded-2xl bg-red-50 p-6 text-center"><p className="text-sm font-bold uppercase tracking-wider text-red-700">Transmitting in</p><p className="mt-2 text-6xl font-black tabular-nums text-red-800" aria-live="assertive">{countdown}</p><p className="mt-2 text-sm font-semibold text-red-900">seconds</p></div>
         <Button variant="outline" className="mt-5 min-h-14 w-full border-red-300 text-base text-red-800 hover:bg-red-50" onClick={undoActivation}><Undo2 className="h-5 w-5" /> Undo false alert</Button>
       </AccessibleModal>
 
-      <AccessibleModal open={modal === 'prompt'} title="Request sent" description="Add details if you can. Your emergency request does not depend on completing this step." onClose={() => setModal('status')}>
+      <AccessibleModal open={modal === 'prompt'} title="Alert sent" description="Add details now or skip." onClose={() => setModal('status')}>
         <div className="rounded-lg bg-blue-50 p-4" role="status" aria-live="polite">
           <p className="font-bold text-[#003172]">
             {!activeIncident || activeIncident.deliveryState === 'pending'
@@ -293,7 +311,7 @@ export default function ClientPage() {
         </div>
       </AccessibleModal>
 
-      <AccessibleModal open={modal === 'information'} title="Add information" description="This is optional. Your original emergency request remains active." onClose={closeInformation}>
+      <AccessibleModal open={modal === 'information'} title="Add information" description="Optional. Your alert stays active." onClose={closeInformation}>
         <AdditionalInfoForm
           draft={draft}
           onChange={setDraft}
@@ -311,21 +329,77 @@ export default function ClientPage() {
             {activeIncident.assignedEmployeeId && responder && station ? (
               <div className="border-l-4 border-emerald-600 bg-emerald-50 p-4 text-emerald-950"><p className="font-bold">{responder.name} {responder.surname} from {station.name} has accepted your emergency request.</p></div>
             ) : activeIncident.deliveryState === 'sent' || activeIncident.deliveryState === 'no_responders' ? (
-              <p className="text-base leading-7 text-slate-700">Your emergency request has been sent to <strong>{station?.name}</strong>, the nearest appropriate station by straight-line distance. You will be notified as soon as a responder accepts your call.</p>
+              <p className="text-base leading-7 text-slate-700">Sent to <strong>{station?.name}</strong>. You will be notified when a responder accepts.</p>
             ) : activeIncident.deliveryState === 'failed' ? (
               <p className="font-bold text-red-700">Request not sent. Your browser is offline or the submission failed.</p>
             ) : (
               <p className="font-bold text-[#003172]">{activeIncident.location ? 'Sending request…' : 'Location is unresolved. Enable location or add a landmark so a station can be selected.'}</p>
             )}
-            <dl className="mt-5 divide-y divide-slate-200 rounded-xl bg-slate-50 px-4 text-sm shadow-inner">
-              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Incident reference</dt><dd className="font-extrabold text-slate-950">{activeIncident.reference}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Service</dt><dd className="font-extrabold text-slate-950">{serviceLabel(activeIncident.service)}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Station</dt><dd className="text-right font-extrabold text-slate-950">{station?.name ?? 'Not selected'}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Additional information</dt><dd className="font-extrabold text-slate-950">{activeIncident.information.length ? 'Sent' : activeIncident.informationError ? 'Failed, draft kept' : 'Not sent'}</dd></div>
+
+            {!['submission_failed', 'submitting'].includes(activeIncident.progress) && (
+              <ol className="mt-5 grid grid-cols-4" aria-label="Request progress">
+                {progressSteps.map((step, index) => {
+                  const reached = progressIndex >= index;
+                  return (
+                    <li key={step.id} className="relative flex flex-col items-center text-center">
+                      {index > 0 && <span className={`absolute right-1/2 top-3 h-0.5 w-full ${progressIndex >= index ? 'bg-emerald-600' : 'bg-slate-200'}`} />}
+                      <span className={`relative z-10 grid h-6 w-6 place-items-center rounded-full text-[10px] font-black ${reached ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                        {reached ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                      </span>
+                      <span className={`mt-1.5 text-[10px] font-bold sm:text-xs ${reached ? 'text-emerald-800' : 'text-slate-500'}`}>{step.label}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+
+            <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 rounded-xl bg-slate-50 p-4 text-sm shadow-inner">
+              <div><dt className="text-xs font-semibold text-slate-500">Reference</dt><dd className="mt-0.5 font-extrabold text-slate-950">{activeIncident.reference}</dd></div>
+              <div><dt className="text-xs font-semibold text-slate-500">Service</dt><dd className="mt-0.5 font-extrabold text-slate-950">{serviceLabel(activeIncident.service)}</dd></div>
+              <div><dt className="text-xs font-semibold text-slate-500">Station</dt><dd className="mt-0.5 font-extrabold text-slate-950">{station?.name ?? 'Not selected'}</dd></div>
+              <div><dt className="text-xs font-semibold text-slate-500">Reported</dt><dd className="mt-0.5 font-extrabold text-slate-950">{new Date(activeIncident.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</dd></div>
             </dl>
             {activeIncident.deliveryState === 'no_responders' && <p className="mt-4 font-semibold text-amber-900">No employees are currently on duty for this service. No responder has accepted yet.</p>}
             {activeIncident.deliveryState === 'everyone_declined' && <p className="mt-4 font-semibold text-amber-900">Every offered responder declined. The request remains active and no responder has accepted yet.</p>}
-            <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button className="min-h-12" onClick={() => setModal(null)}>View request</Button><Button variant="outline" className="min-h-12" onClick={() => setModal('information')}>Add more information</Button></div>
+
+            <section className="mt-5 border-t border-slate-200 pt-4" aria-labelledby="additional-information-heading">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Optional details</p>
+                  <h3 id="additional-information-heading" className="mt-0.5 text-sm font-bold text-slate-700">Additional information</h3>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{activeIncident.information.length || 'None'}</span>
+              </div>
+              {activeIncident.information.length ? (
+                <div className="mt-3 space-y-3">
+                  {activeIncident.information.map((information) => (
+                    <article key={information.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                      {information.happened && <p className="flex items-start gap-2"><FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /><span>{information.happened}</span></p>}
+                      {information.landmark && <p className="mt-2 flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /><span>{information.landmark}</span></p>}
+                      {information.attachments.length > 0 && (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {information.attachments.map((attachment) => attachment.kind === 'photo' ? (
+                            <figure key={attachment.id} className="overflow-hidden rounded-lg bg-slate-100">
+                              <img src={attachment.dataUrl} alt="Additional emergency information" className="max-h-32 w-full object-cover" />
+                              <figcaption className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold text-slate-500"><Camera className="h-3 w-3" /> Photo</figcaption>
+                            </figure>
+                          ) : (
+                            <div key={attachment.id} className="rounded-lg bg-slate-100 p-2">
+                              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500"><Mic className="h-3 w-3" /> Voice recording</p>
+                              <audio controls src={attachment.dataUrl} className="w-full" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs leading-5 text-slate-500">No additional details have been added.</p>
+              )}
+            </section>
+
+            <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button className="min-h-12" onClick={() => setModal('information')}>Add information</Button><Button variant="outline" className="min-h-12" onClick={() => setModal(null)}>Close</Button></div>
           </div>
         )}
       </AccessibleModal>

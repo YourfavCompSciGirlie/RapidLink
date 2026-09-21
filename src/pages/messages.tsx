@@ -127,34 +127,34 @@ export default function ResponderMessagesPage() {
   ])) as Record<RequestTab, number>, [requests]);
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+    <main className="min-h-[calc(100vh-4.5rem)] bg-slate-50">
       {!online && <div className="bg-amber-700 px-4 py-2.5 text-center text-sm font-semibold text-white" role="status">Offline · updates are saved on this device.</div>}
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-9">
-        <header>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-slate-400">Responder portal</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-[#003172]">Requests</h1>
+      <div className="mx-auto max-w-2xl px-4 py-5 sm:px-6 sm:py-8">
+        <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_14px_38px_rgba(15,23,42,0.08)]" aria-label="Responder profile">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#003172]"><ShieldCheck className="h-5 w-5" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-400">Responder</p>
+              <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#003172]">Requests</h1>
+            </div>
+            {responder && <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${onDuty ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{onDuty ? 'On duty' : 'Off duty'}</span>}
+          </div>
+          {responder && (
+            <div className="mt-4 flex items-center gap-3 border-t border-slate-100 pt-4">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#003172] text-sm font-black text-white">{responder.name[0]}{responder.surname[0]}</span>
+              <div className="min-w-0">
+                <h2 className="truncate font-extrabold text-slate-950">{responder.name} {responder.surname}</h2>
+                <p className="truncate text-xs font-semibold text-slate-500">{serviceLabel(responder.service)} · {responderStation?.name}</p>
+              </div>
+            </div>
+          )}
         </header>
 
-        {responder && (
-          <section className="mt-5 flex items-center gap-3 rounded-2xl bg-[#003172] p-4 text-white shadow-[0_14px_34px_rgba(0,49,114,0.2)] sm:p-5" aria-label="Responder profile">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15 text-lg font-black">
-              {responder.name[0]}{responder.surname[0]}
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-lg font-extrabold">{responder.name} {responder.surname}</h2>
-              <p className="truncate text-xs font-semibold text-blue-100">{serviceLabel(responder.service)} · {responderStation?.name} · {responder.employeeNumber}</p>
-            </div>
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide ${onDuty ? 'bg-emerald-400/20 text-emerald-100' : 'bg-white/10 text-blue-100'}`}>
-              {onDuty ? 'On duty' : 'Off duty'}
-            </span>
-          </section>
-        )}
-
-        <section className="mt-7" aria-labelledby="request-list-heading">
-          <div className="flex items-end justify-between gap-4">
+        <section className="mt-6" aria-labelledby="request-list-heading">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 id="request-list-heading" className="text-xl font-extrabold text-slate-950">Your requests</h2>
-              <p className="mt-1 text-sm text-slate-500">{counts.open} waiting · {counts.en_route} en route</p>
+              <h2 id="request-list-heading" className="text-lg font-bold text-[#003172]">Your requests</h2>
+              <p className="mt-0.5 text-xs font-semibold text-slate-500">{counts.open} waiting · {counts.en_route} en route</p>
             </div>
             <label className="relative shrink-0">
               <span className="sr-only">Sort requests</span>
@@ -172,7 +172,7 @@ export default function ResponderMessagesPage() {
             </label>
           </div>
 
-          <div className="-mx-4 mt-5 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Request status">
+          <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Request status">
             <div className="flex min-w-max gap-2">
               {tabs.map((tab) => (
                 <button
@@ -196,7 +196,7 @@ export default function ResponderMessagesPage() {
               const active = ['accepted', 'en_route', 'arrived'].includes(item.status);
               const StatusIcon = urgent ? Radio : item.status === 'arrived' || label === 'Completed' ? CheckCircle2 : active ? Navigation : ShieldCheck;
               return (
-                <article key={item.offer.id} className={`overflow-hidden rounded-2xl border bg-white shadow-[0_10px_28px_rgba(15,23,42,0.07)] ${urgent ? 'border-red-200' : active ? 'border-blue-100' : 'border-slate-200'}`}>
+                <article key={item.offer.id} className={`overflow-hidden rounded-2xl border bg-white shadow-[0_8px_24px_rgba(15,23,42,0.06)] ${urgent ? 'border-red-200' : active ? 'border-blue-100' : 'border-slate-200'}`}>
                   <div className={`h-1 ${urgent ? 'bg-red-600' : active ? 'bg-[#003172]' : 'bg-slate-300'}`} />
                   <div className="p-4 sm:p-5">
                     <div className="flex items-start gap-3">
@@ -218,7 +218,7 @@ export default function ResponderMessagesPage() {
                       <div className="px-2"><dt className="flex items-center justify-center gap-1 text-[10px] font-semibold text-slate-500"><Clock3 className="h-3 w-3" /> Reported</dt><dd className="mt-1 text-xs font-extrabold text-slate-800">{relativeTime(item.incident.createdAt)}</dd></div>
                     </dl>
 
-                    <Button asChild className="mt-4 w-full">
+                    <Button asChild variant={urgent ? 'emergency' : 'primary'} className="mt-4 min-h-12 w-full">
                       <Link to={`/responder/offers/${item.offer.id}`}>
                         <Siren className="h-4 w-4" /> {urgent ? 'Review request' : active ? 'Open assignment' : 'View details'}
                       </Link>

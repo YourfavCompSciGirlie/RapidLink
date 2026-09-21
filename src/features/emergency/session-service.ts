@@ -18,6 +18,7 @@ import type {
 } from './types.js';
 
 export const ACTIVE_SESSION_KEY = 'rapidlink-active-session-v2';
+export const DEVICE_IDENTITY_KEY = 'rapidlink-device-identity-v1';
 const CHANNEL_NAME = 'rapidlink-session-events-v2';
 const stateKey = (code: string) => `rapidlink-session-${code}`;
 const queueKey = (code: string) => `rapidlink-actions-${code}`;
@@ -29,6 +30,37 @@ const action = <T extends EmergencyAction['type']>(type: T, payload: Extract<Eme
 
 const storage = () => (typeof window === 'undefined' ? null : window.localStorage);
 const activeCode = () => storage()?.getItem(ACTIVE_SESSION_KEY) ?? null;
+
+interface DeviceIdentity {
+  profile: ClientProfile;
+  security: CancellationPinRecord;
+}
+
+const readDeviceIdentity = (): DeviceIdentity | null => {
+  try {
+    const saved = storage()?.getItem(DEVICE_IDENTITY_KEY);
+    if (!saved) return null;
+    const identity = JSON.parse(saved) as Partial<DeviceIdentity>;
+    return identity.profile && identity.security ? identity as DeviceIdentity : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeDeviceIdentity = (identity: DeviceIdentity) => {
+  storage()?.setItem(DEVICE_IDENTITY_KEY, JSON.stringify(identity));
+};
+
+const restoreDeviceIdentity = (state: EmergencyState): EmergencyState => {
+  if (state.profile && state.profileSecurity) return state;
+  const identity = readDeviceIdentity();
+  return identity ? { ...state, profile: identity.profile, profileSecurity: identity.security, registrationStatus: 'REGISTERED' } : state;
+};
+
+const rememberDeviceIdentity = (state: EmergencyState) => {
+  if (state.profile && state.profileSecurity) writeDeviceIdentity({ profile: state.profile, security: state.profileSecurity });
+  return state;
+};
 
 export const normalizeRoomCode = (value: string) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 export const generateRoomCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (value) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[value % 32]).join('');
@@ -337,8 +369,8 @@ export const normalizeEmergencyState = (saved: Partial<EmergencyState>): Emergen
 export const readState = (code = activeCode() ?? 'LOCAL1'): EmergencyState => {
   try {
     const saved = storage()?.getItem(stateKey(code));
-    return saved ? normalizeEmergencyState(JSON.parse(saved) as Partial<EmergencyState>) : createInitialState();
-  } catch { return createInitialState(); }
+    return restoreDeviceIdentity(saved ? normalizeEmergencyState(JSON.parse(saved) as Partial<EmergencyState>) : createInitialState());
+  } catch { return restoreDeviceIdentity(createInitialState()); }
 };
 
 let remoteAvailable = true;
@@ -355,9 +387,10 @@ const announce = (code: string, state: EmergencyState) => {
 };
 
 const writeLocal = (code: string, state: EmergencyState) => {
-  storage()?.setItem(stateKey(code), JSON.stringify(state));
-  announce(code, state);
-  return state;
+  const localState = restoreDeviceIdentity(state);
+  storage()?.setItem(stateKey(code), JSON.stringify(localState));
+  announce(code, localState);
+  return localState;
 };
 
 const mergePending = (state: EmergencyState, pending: EmergencyAction[]) => pending.reduce(applyEmergencyAction, state);
@@ -387,7 +420,10 @@ export async function syncFromRemote(code = activeCode()) {
     if (!response.ok) { remoteAvailable = response.status !== 503; return readState(code); }
     const record = await response.json() as SessionRecord;
     remoteAvailable = true;
-    return receiveRemoteState(code, record.state);
+    const remoteState = receiveRemoteState(code, record.state);
+    const identity = readDeviceIdentity();
+    if (!record.state.profile && identity) return commit(action('save-profile', identity));
+    return remoteState;
   } catch { remoteAvailable = false; return readState(code); }
 }
 
@@ -414,10 +450,10 @@ export async function flushPending(code = activeCode()) {
 const commit = (event: EmergencyAction) => {
   const code = activeCode() ?? 'LOCAL1';
   const next = applyEmergencyAction(readState(code), event);
-  writeLocal(code, next);
+  const localState = writeLocal(code, next);
   writeQueue(code, [...readQueue(code), event]);
   void flushPending(code);
-  return next;
+  return localState;
 };
 
 export async function createSession(code = generateRoomCode()) {
@@ -431,6 +467,8 @@ export async function createSession(code = generateRoomCode()) {
   } catch { remoteAvailable = false; }
   writeQueue(normalized, []);
   writeLocal(normalized, state);
+  const identity = readDeviceIdentity();
+  if (!state.profile && identity) commit(action('save-profile', identity));
   return normalized;
 }
 
@@ -443,6 +481,8 @@ export async function joinSession(code: string) {
     remoteAvailable = true;
     const record = await response.json() as SessionRecord;
     writeLocal(normalized, record.state);
+    const identity = readDeviceIdentity();
+    if (!record.state.profile && identity) commit(action('save-profile', identity));
   } else if (!storage()?.getItem(stateKey(normalized))) {
     if (response && response.status === 404) throw new Error('That workspace could not be found.');
     remoteAvailable = false;
@@ -485,11 +525,18 @@ export const sessionService = {
     return state;
   },
   recoverUnavailableIncidents() { return this.recoverEscalations(); },
-  saveProfile(profile: ClientProfile, security: CancellationPinRecord) { return commit(action('save-profile', { profile, security })); },
-  updateProfile(profile: ClientProfile) { return commit(action('update-profile', { profile })); },
-  changePin(security: CancellationPinRecord) { return commit(action('change-pin', { security })); },
-  recordPinFailure(lockedUntil?: string) { return commit(action('record-pin-failure', { lockedUntil })); },
-  clearPinFailures() { return commit(action('clear-pin-failures', {})); },
+  saveProfile(profile: ClientProfile, security: CancellationPinRecord) {
+    writeDeviceIdentity({ profile, security });
+    return commit(action('save-profile', { profile, security }));
+  },
+  updateProfile(profile: ClientProfile) {
+    return rememberDeviceIdentity(commit(action('update-profile', { profile })));
+  },
+  changePin(security: CancellationPinRecord) {
+    return rememberDeviceIdentity(commit(action('change-pin', { security })));
+  },
+  recordPinFailure(lockedUntil?: string) { return rememberDeviceIdentity(commit(action('record-pin-failure', { lockedUntil }))); },
+  clearPinFailures() { return rememberDeviceIdentity(commit(action('clear-pin-failures', {}))); },
   createIncident(payload: { incidentId: string; service: ServiceType; location: CapturedLocation | null }) { return commit(action('create-incident', payload)); },
   submitIncident(incidentId: string) { return commit(action('submit-incident', { incidentId })); },
   updateIncidentLocation(incidentId: string, location: CapturedLocation, locationNote?: string) { return commit(action('update-location', { incidentId, location, locationNote })); },

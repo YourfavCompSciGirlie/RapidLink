@@ -20,9 +20,9 @@ describe('client emergency activation', () => {
 
   it('creates and submits an incident immediately', async () => {
     render(<MemoryRouter><EmergencyProvider><ClientPage /></EmergencyProvider></MemoryRouter>);
-    fireEvent.click(screen.getByRole('button', { name: 'Use Ga-Rankuwa' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select Ga-Rankuwa area' }));
     fireEvent.click(screen.getByRole('button', { name: /^Police$/ }));
-    expect(screen.getByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Distress signal sent' })).toBeInTheDocument();
     expect(readState().incidents).toHaveLength(1);
     await waitFor(() => expect(readState().offers.length).toBeGreaterThan(0));
   });

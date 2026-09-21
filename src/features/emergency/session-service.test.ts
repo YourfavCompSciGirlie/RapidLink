@@ -60,6 +60,17 @@ describe('emergency session reducer', () => {
     expect(twice.revision).toBe(once.revision);
   });
 
+  it('keeps the registered client identity on this device when room data resets', () => {
+    const registered = registeredState();
+    sessionService.saveProfile(registered.profile!, registered.profileSecurity!);
+
+    const reset = sessionService.reset();
+
+    expect(reset.registrationStatus).toBe('REGISTERED');
+    expect(reset.profile?.id).toBe('client-test');
+    expect(reset.incidents).toHaveLength(0);
+  });
+
   it('allows only the first responder to accept', () => {
     let state = registeredState();
     state = apply(state, { id: 'create-race', type: 'create-incident', payload: { incidentId: 'incident-race', service: 'ambulance', location } });

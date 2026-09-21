@@ -32,7 +32,7 @@ function Launcher() {
       if (target) navigate(target, { replace: true });
     }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'The workspace could not be connected.')).finally(() => setBusy(false));
   }, [navigate, searchParams]);
-  const roomLinks = useMemo(() => Object.fromEntries(roles.map((role) => [role.id, `${origin}/?session=${room}&role=${role.id}`])), [origin, room]);
+  const roomLinks = useMemo(() => Object.fromEntries(roles.map((role) => [role.id, `${origin}/session?session=${room}&role=${role.id}`])), [origin, room]);
   const create = async () => { setBusy(true); setError(''); try { setRoom(await createSession(generateRoomCode())); } finally { setBusy(false); } };
   const join = async () => { setBusy(true); setError(''); try { setRoom(await joinSession(code)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'The workspace could not be connected.'); } finally { setBusy(false); } };
   return (

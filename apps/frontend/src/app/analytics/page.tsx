@@ -63,7 +63,7 @@ export default function AnalyticsPage() {
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
         <Card className={resolved ? 'border-emerald-200' : ''}>
-          <CardHeader><div><p className="eyebrow">Demo incident</p><h2 className="mt-1 text-lg font-bold">{incident.reference} · Mams Mall</h2></div><div className="flex gap-2"><PriorityBadge priority={incident.priority} /><IncidentStatusBadge status={incident.status} /></div></CardHeader>
+          <CardHeader><div><p className="eyebrow">Active incident</p><h2 className="mt-1 text-lg font-bold">{incident.reference} · Mams Mall</h2></div><div className="flex gap-2"><PriorityBadge priority={incident.priority} /><IncidentStatusBadge status={incident.status} /></div></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {[['Report → dispatch', incident.dispatchedAt ? '2m 04s' : 'Pending'], ['Dispatch → arrival', firstArrival ? '6m 47s' : 'Pending'], ['Total duration', resolved ? '41m 12s' : 'In progress'], ['Units deployed', assignments.length || 'Pending']].map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-xl font-black">{value}</p></div>)}

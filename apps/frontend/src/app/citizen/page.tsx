@@ -1,247 +1,350 @@
 'use client';
 
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  LocateFixed,
-  MapPin,
-  Mic,
-  Navigation,
-  RotateCcw,
-  Send,
-  Sparkles,
-  Type,
-  Waves,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useState } from 'react';
+import { CheckCircle2, Clock3, Contact, Info, MapPin, Pause, Play, RotateCcw, UserRound } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DemoMap } from '@/components/demo-map';
-import { Badge } from '@/components/ui/badge';
+import { AccessibleModal } from '@/components/accessible-modal';
+import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { useDemo } from '@/features/demo/demo-context';
-import { reportTranscript } from '@/features/demo/data/seed';
+import { ActiveIncidentPanel } from '@/features/emergency/components/active-incident-panel';
+import { AdditionalInfoForm } from '@/features/emergency/components/additional-info-form';
+import { EmergencyButton } from '@/features/emergency/components/emergency-button';
+import { getBrowserLocation, LocationStatus } from '@/features/emergency/components/location-status';
+import { SosButton } from '@/features/emergency/components/sos-button';
+import { EMERGENCY_SERVICES, serviceLabel } from '@/features/emergency/config';
+import { useEmergency } from '@/features/emergency/emergency-context';
+import { mockEmergencyService } from '@/features/emergency/mock-service';
+import type { CapturedLocation, IncidentAttachment, IncidentDraft, ServiceType } from '@/features/emergency/types';
 
-type Stage = 'report' | 'recording' | 'processing' | 'failed' | 'review' | 'submitted';
+type ClientModal = 'prompt' | 'information' | 'status' | 'accepted' | null;
 
-const processSteps = ['Transcribing voice report', 'Structuring incident details', 'Matching Mams Mall landmark'];
+const emptyDraft: IncidentDraft = { happened: '', landmark: '', photo: null, audio: null, dirty: false };
+const LOCATION_KEY = 'rapidlink-last-location-v1';
 
-export default function CitizenReportPage() {
-  const { incident, submitReport } = useDemo();
-  const [stage, setStage] = useState<Stage>('report');
-  const [mode, setMode] = useState<'voice' | 'text'>('voice');
-  const [text, setText] = useState(reportTranscript);
-  const [location, setLocation] = useState(incident.location.label);
-  const [casualties, setCasualties] = useState(incident.casualties);
+export default function CitizenPage() {
+  const { state, online, ready, refresh, reset } = useEmergency();
+  const activeIncident = state.incidents.find(
+    (incident) => incident.clientId === state.profile.id && incident.progress !== 'completed',
+  );
+  const station = state.stations.find((item) => item.id === activeIncident?.stationId);
+  const responder = state.employees.find((item) => item.id === activeIncident?.assignedEmployeeId);
+  const [location, setLocation] = useState<CapturedLocation | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [modal, setModal] = useState<ClientModal>(null);
+  const [countdown, setCountdown] = useState(5);
+  const [countdownPaused, setCountdownPaused] = useState(false);
+  const [pulsingId, setPulsingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<IncidentDraft>(emptyDraft);
+  const [sendingInfo, setSendingInfo] = useState(false);
+  const [infoError, setInfoError] = useState('');
+  const [acceptedQueued, setAcceptedQueued] = useState(false);
+  const activationGuard = useRef(false);
+  const initializedAssignment = useRef(false);
+  const previousAssignment = useRef<string | undefined>();
 
-  const startVoice = () => {
-    setStage('recording');
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(LOCATION_KEY);
+      if (stored) setLocation(JSON.parse(stored) as CapturedLocation);
+    } catch {
+      // Location persistence is optional.
+    }
+  }, []);
+
+  const activeIncidentId = activeIncident?.id;
+
+  useEffect(() => {
+    if (!activeIncidentId) return;
+    try {
+      const stored = window.localStorage.getItem(`rapidlink-draft-${activeIncidentId}`);
+      if (stored) setDraft(JSON.parse(stored) as IncidentDraft);
+    } catch {
+      // The in-memory draft remains available.
+    }
+  }, [activeIncidentId]);
+
+  useEffect(() => {
+    if (!activeIncident || !draft.dirty) return;
+    try {
+      window.localStorage.setItem(`rapidlink-draft-${activeIncident.id}`, JSON.stringify(draft));
+    } catch {
+      // The current form still preserves the draft in memory.
+    }
+  }, [activeIncident, draft]);
+
+  useEffect(() => {
+    if (modal !== 'prompt' || countdownPaused) return;
+    if (countdown <= 0) {
+      setModal('status');
+      return;
+    }
+    const timer = window.setTimeout(() => setCountdown((value) => value - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown, countdownPaused, modal]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const current = activeIncident?.assignedEmployeeId;
+    if (!initializedAssignment.current) {
+      previousAssignment.current = current;
+      initializedAssignment.current = true;
+      return;
+    }
+    if (current && !previousAssignment.current) {
+      if (modal === 'information') setAcceptedQueued(true);
+      else setModal('accepted');
+    }
+    previousAssignment.current = current;
+  }, [activeIncident?.assignedEmployeeId, modal, ready]);
+
+  const saveLocation = useCallback(
+    (captured: CapturedLocation) => {
+      setLocation(captured);
+      setLocationError('');
+      try {
+        window.localStorage.setItem(LOCATION_KEY, JSON.stringify(captured));
+      } catch {
+        // Current location is still usable for this session.
+      }
+      if (activeIncident) {
+        mockEmergencyService.updateIncidentLocation(activeIncident.id, captured, draft.landmark);
+        refresh();
+      }
+    },
+    [activeIncident, draft.landmark, refresh],
+  );
+
+  const requestLocation = useCallback(async () => {
+    setLocationLoading(true);
+    setLocationError('');
+    try {
+      saveLocation(await getBrowserLocation());
+    } catch (cause) {
+      setLocationError(cause instanceof Error ? cause.message : 'Location could not be determined.');
+    } finally {
+      setLocationLoading(false);
+    }
+  }, [saveLocation]);
+
+  const activate = (service: ServiceType) => {
+    if (activationGuard.current || activeIncident) return;
+    activationGuard.current = true;
+    const incidentId = `incident-${crypto.randomUUID()}`;
+    mockEmergencyService.createIncident({ incidentId, service, location });
+    refresh();
+    setPulsingId(incidentId);
+    setCountdown(5);
+    setCountdownPaused(false);
+    setModal('prompt');
+    window.setTimeout(() => setPulsingId(null), 5000);
     window.setTimeout(() => {
-      setStage('processing');
-      window.setTimeout(() => setStage('review'), 1400);
-    }, 1100);
+      mockEmergencyService.submitIncident(incidentId);
+      refresh();
+    }, 450);
+
+    const capturedAt = location ? Date.parse(location.capturedAt) : 0;
+    if (!location || Date.now() - capturedAt > 60_000) {
+      void getBrowserLocation()
+        .then((fresh) => {
+          saveLocation(fresh);
+          mockEmergencyService.updateIncidentLocation(incidentId, fresh);
+          refresh();
+        })
+        .catch((cause: unknown) => {
+          setLocationError(cause instanceof Error ? cause.message : 'Location could not be refreshed.');
+        });
+    }
   };
 
-  const processText = () => {
-    setStage('processing');
-    window.setTimeout(() => setStage('review'), 1400);
+  const closeInformation = () => {
+    setModal(acceptedQueued ? 'accepted' : 'status');
+    setAcceptedQueued(false);
   };
 
-  const sendReport = () => {
-    submitReport({ transcript: text, locationLabel: location, casualties });
-    setStage('submitted');
+  const sendInformation = () => {
+    if (!activeIncident) return;
+    setSendingInfo(true);
+    setInfoError('');
+    const attachments = [draft.photo, draft.audio].filter(Boolean) as IncidentAttachment[];
+    const result = mockEmergencyService.addIncidentInformation({
+      incidentId: activeIncident.id,
+      happened: draft.happened,
+      landmark: draft.landmark,
+      attachments,
+    });
+    const updated = result.incidents.find((item) => item.id === activeIncident.id);
+    refresh();
+    setSendingInfo(false);
+    if (updated?.informationError) {
+      setInfoError(`${updated.informationError} The original request remains active.`);
+      return;
+    }
+    setDraft(emptyDraft);
+    try {
+      window.localStorage.removeItem(`rapidlink-draft-${activeIncident.id}`);
+    } catch {
+      // Nothing else is required.
+    }
+    closeInformation();
   };
+
+  const statusTitle = useMemo(() => {
+    if (!activeIncident) return 'Request status';
+    if (activeIncident.progress === 'submission_failed') return 'Request not sent';
+    if (activeIncident.assignedEmployeeId) return 'Help is on the way';
+    if (activeIncident.deliveryState === 'sent' || activeIncident.deliveryState === 'no_responders') return 'Request sent';
+    if (!activeIncident.location) return 'Location needed';
+    return 'Sending request…';
+  }, [activeIncident]);
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <p className="eyebrow">Citizen emergency reporter</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-              {stage === 'submitted' ? 'Help is being coordinated.' : 'Tell us what happened.'}
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-              Speak naturally. RapidLink will organise your report and ask you to confirm it before sending.
-            </p>
+    <main className="min-h-[calc(100vh-4rem)] bg-white">
+      <ServiceNotice />
+      {!online && <div className="bg-red-800 px-4 py-3 text-center text-sm font-bold text-white" role="alert">Browser offline — requests and additional information cannot be delivered.</div>}
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-9">
+        <header>
+          <p className="text-sm font-bold text-slate-600">Client emergency request</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#003172] sm:text-4xl">What help do you need?</h1>
+          <p className="mt-2 max-w-2xl text-base font-medium leading-6 text-slate-700">One tap starts your emergency request immediately. You can add details afterward.</p>
+        </header>
+
+        <section className="mt-7 text-center" aria-labelledby="sos-heading">
+          <h2 id="sos-heading" className="text-xl font-extrabold text-[#003172]">Immediate combined response</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm font-semibold text-slate-600">SOS immediately requests both police and ambulance support.</p>
+          <div className="mt-6 py-3">
+            <SosButton
+              active={activeIncident?.service === 'sos'}
+              pulsing={activeIncident?.service === 'sos' && pulsingId === activeIncident.id}
+              disabled={Boolean(activeIncident)}
+              onActivate={() => activate('sos')}
+            />
           </div>
-          <Badge tone="green"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Secure</Badge>
+        </section>
+
+        <div className="mt-7">
+          <LocationStatus location={location} loading={locationLoading} error={locationError} onEnable={() => void requestLocation()} onPreset={saveLocation} />
         </div>
 
-        {(stage === 'report' || stage === 'recording') && (
-          <Card className="overflow-hidden">
-            <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50 p-1.5">
-              <button
-                className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-bold ${mode === 'voice' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}
-                onClick={() => setMode('voice')}
-              >
-                <Mic className="h-4 w-4" /> Voice report
-              </button>
-              <button
-                className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-bold ${mode === 'text' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'}`}
-                onClick={() => setMode('text')}
-              >
-                <Type className="h-4 w-4" /> Type report
-              </button>
+        <section aria-labelledby="services-heading" className="mt-7">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+            <div>
+              <h2 id="services-heading" className="text-xl font-extrabold text-slate-950">Choose an emergency service</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-600">The selected service turns red as the request starts.</p>
             </div>
+            {activeIncident && <span className="shrink-0 rounded-full bg-red-100 px-3 py-1.5 text-sm font-bold text-red-800">Request active</span>}
+          </div>
+          <div className="mt-6 flex flex-wrap justify-center gap-5 py-3 sm:gap-7">
+            {EMERGENCY_SERVICES.map((service) => (
+              <EmergencyButton
+                key={service.id}
+                service={service}
+                active={activeIncident?.service === service.id}
+                pulsing={activeIncident?.service === service.id && pulsingId === activeIncident.id}
+                disabled={Boolean(activeIncident)}
+                onActivate={() => activate(service.id)}
+              />
+            ))}
+          </div>
+        </section>
 
-            <CardContent className="p-6 sm:p-8">
-              {mode === 'voice' ? (
-                <div className="text-center">
-                  <button
-                    aria-label={stage === 'recording' ? 'Recording emergency report' : 'Record voice report'}
-                    onClick={startVoice}
-                    disabled={stage === 'recording'}
-                    className={`mx-auto grid h-36 w-36 place-items-center rounded-full text-white transition-all ${stage === 'recording' ? 'animate-pulse bg-red-500 shadow-[0_0_0_18px_rgba(239,63,52,.12)]' : 'bg-[#ef3f34] shadow-[0_12px_40px_rgba(239,63,52,.28)] hover:scale-105'}`}
-                  >
-                    {stage === 'recording' ? <Waves className="h-11 w-11" /> : <Mic className="h-11 w-11" />}
-                  </button>
-                  <h2 className="mt-7 text-xl font-bold text-slate-950">
-                    {stage === 'recording' ? 'Listening…' : 'Hold to describe the emergency'}
-                  </h2>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                    Mention what happened, where you are, how many people may be affected, and any visible dangers.
-                  </p>
-                  <button onClick={() => setStage('failed')} className="mt-5 text-xs font-semibold text-slate-400 underline-offset-4 hover:underline">
-                    Demo transcription fallback
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <label htmlFor="report" className="text-sm font-bold text-slate-900">Emergency description</label>
-                  <textarea
-                    id="report"
-                    value={text}
-                    onChange={(event) => setText(event.target.value)}
-                    className="mt-3 min-h-40 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 outline-none transition focus:border-red-300 focus:bg-white focus:ring-4 focus:ring-red-50"
-                  />
-                  <Button className="mt-4 w-full" size="lg" variant="emergency" onClick={processText} disabled={!text.trim()}>
-                    Analyse report <Sparkles className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-
-            <div className="grid gap-3 border-t border-slate-100 bg-slate-50/70 p-4 sm:grid-cols-2">
-              <button className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700"><LocateFixed className="h-4 w-4" /></span>
-                <span><span className="block text-xs font-bold text-slate-900">Share current location</span><span className="text-[11px] text-slate-500">GPS available</span></span>
-              </button>
-              <button className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-amber-50 text-amber-700"><MapPin className="h-4 w-4" /></span>
-                <span><span className="block text-xs font-bold text-slate-900">Describe a landmark</span><span className="text-[11px] text-slate-500">No street address needed</span></span>
-              </button>
-            </div>
-          </Card>
-        )}
-
-        {stage === 'processing' && (
-          <Card className="p-8 text-center sm:p-12">
-            <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-red-50 text-[#ef3f34]"><Sparkles className="h-7 w-7 animate-pulse" /></span>
-            <h2 className="mt-5 text-xl font-bold">Understanding your report</h2>
-            <p className="mt-2 text-sm text-slate-500">This usually takes only a few seconds.</p>
-            <div className="mx-auto mt-8 max-w-md space-y-3 text-left">
-              {processSteps.map((step, index) => (
-                <div key={step} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm font-semibold text-slate-700">
-                  <span className={`grid h-6 w-6 place-items-center rounded-full ${index < 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {index < 2 ? <Check className="h-3.5 w-3.5" /> : <RotateCcw className="h-3.5 w-3.5 animate-spin" />}
-                  </span>
-                  {step}
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {stage === 'failed' && (
-          <Card className="border-amber-200 p-7 text-center">
-            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-50 text-amber-700"><AlertTriangle className="h-6 w-6" /></span>
-            <h2 className="mt-5 text-xl font-bold">We couldn&apos;t transcribe that recording</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Your recording was not submitted. Type the same details or try recording again.</p>
-            <div className="mt-6 flex justify-center gap-3">
-              <Button variant="outline" onClick={() => setStage('report')}><Mic className="h-4 w-4" /> Try again</Button>
-              <Button onClick={() => { setMode('text'); setStage('report'); }}><Type className="h-4 w-4" /> Type instead</Button>
-            </div>
-          </Card>
-        )}
-
-        {stage === 'review' && (
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div><p className="eyebrow">What we understood</p><h2 className="mt-1 text-xl font-bold">Please confirm these details</h2></div>
-                <Badge tone="blue"><Sparkles className="h-3 w-3" /> AI assisted</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm italic leading-6 text-slate-600">“{text}”</div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {[
-                    ['Incident', 'Road traffic collision', 'Inferred · 96%'],
-                    ['People hurt', `Approximately ${casualties}`, 'Reported · 86%'],
-                    ['Entrapment', 'Possible', 'Reported · 82%'],
-                    ['Smoke / fire risk', 'Possible', 'Inferred · 79%'],
-                  ].map(([label, value, source]) => (
-                    <div key={label} className="rounded-xl border border-slate-200 p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-                      <p className="mt-1 font-bold text-slate-900">{value}</p>
-                      <p className="mt-1 text-[11px] text-slate-500">{source}</p>
-                    </div>
-                  ))}
-                </div>
-                <label className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <span><span className="block text-sm font-bold text-blue-950">Correct the casualty estimate</span><span className="mt-1 block text-xs text-blue-700">Enter the best number you can see or were told.</span></span>
-                  <input aria-label="Casualty estimate" type="number" min={0} value={casualties} onChange={(event) => setCasualties(Number(event.target.value))} className="h-11 w-20 rounded-lg border border-blue-200 bg-white text-center text-lg font-black outline-none focus:ring-4 focus:ring-blue-100" />
-                </label>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div><p className="eyebrow">Location match</p><h2 className="mt-1 text-lg font-bold">{location}</h2></div>
-                <Badge tone="green">91% match</Badge>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <DemoMap compact publicView />
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <label className="flex-1">
-                    <span className="sr-only">Confirmed location</span>
-                    <input value={location} onChange={(event) => setLocation(event.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-red-300 focus:ring-4 focus:ring-red-50" />
-                  </label>
-                  <Button variant="outline" onClick={() => setLocation('Mams Mall main entrance, Mamelodi')}><Navigation className="h-4 w-4" /> Move pin</Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-              <Button variant="ghost" onClick={() => setStage('report')}><ArrowLeft className="h-4 w-4" /> Edit report</Button>
-              <Button size="lg" variant="emergency" onClick={sendReport}>Confirm and send <Send className="h-4 w-4" /></Button>
-            </div>
+        {activeIncident && (
+          <div className="-mx-4 mt-8 sm:mx-0">
+            <ActiveIncidentPanel
+              incident={activeIncident}
+              station={station}
+              responder={responder}
+              onAddInformation={() => setModal('information')}
+              onView={() => setModal('status')}
+              onRetry={() => { mockEmergencyService.submitIncident(activeIncident.id); refresh(); }}
+            />
           </div>
         )}
 
-        {stage === 'submitted' && (
-          <Card className="overflow-hidden text-center">
-            <div className="bg-emerald-600 px-6 py-10 text-white">
-              <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white/15"><CheckCircle2 className="h-8 w-8" /></span>
-              <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-emerald-100">Report received</p>
-              <h2 className="mt-2 text-3xl font-black">{incident.reference}</h2>
-              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-emerald-50">A dispatcher is reviewing your report and confirmed location now.</p>
-            </div>
-            <CardContent className="p-6 sm:p-8">
-              <div className="rounded-xl bg-amber-50 p-4 text-left text-sm leading-6 text-amber-900">
-                <strong>Stay safe:</strong> Keep away from the road and smoke. Do not approach the damaged vehicle.
-              </div>
-              <Button asChild size="lg" className="mt-6 w-full">
-                <Link href={`/citizen/incidents/${incident.reference}`}>Track emergency response <ArrowRight className="h-4 w-4" /></Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <section className="mt-8 pt-6" aria-labelledby="saved-details-heading">
+          <h2 id="saved-details-heading" className="text-lg font-extrabold text-[#003172]">Saved emergency details</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="flex gap-3 rounded-xl bg-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.10)]"><UserRound className="h-5 w-5 text-[#003172]" /><div><p className="font-bold text-slate-950">{state.profile.name} {state.profile.surname}</p><p className="text-sm text-slate-600">{state.profile.phone}</p></div></div>
+            <div className="flex gap-3 rounded-xl bg-white p-4 shadow-[0_10px_26px_rgba(15,23,42,0.10)]"><Contact className="h-5 w-5 text-[#003172]" /><div><p className="font-bold text-slate-950">Emergency contact</p><p className="text-sm text-slate-600">{state.profile.nextOfKin?.name} · {state.profile.nextOfKin?.phone}</p></div></div>
+          </div>
+        </section>
+
+        <div className="mt-8 flex justify-end pt-5">
+          <Button variant="ghost" onClick={() => { reset(); setModal(null); setDraft(emptyDraft); activationGuard.current = false; }}><RotateCcw className="h-4 w-4" /> Clear request data</Button>
+        </div>
       </div>
+
+      <AccessibleModal open={modal === 'prompt'} title="Can you tell us more?" description="Add details if you can. Your emergency request does not depend on completing this step." onClose={() => setModal('status')}>
+        <div className="rounded-lg bg-blue-50 p-4" role="status" aria-live="polite">
+          <p className="font-bold text-[#003172]">
+            {!activeIncident || activeIncident.deliveryState === 'pending'
+              ? 'Sending your emergency request…'
+              : activeIncident.deliveryState === 'sent' || activeIncident.deliveryState === 'no_responders'
+                ? 'Your emergency request has been sent.'
+                : 'Your emergency request was not sent.'}
+          </p>
+          {activeIncident?.deliveryState === 'failed' && <p className="mt-1 text-sm font-semibold text-red-700">Check your connection and retry from the active request panel.</p>}
+        </div>
+        <p className="mt-5 text-center text-lg font-extrabold text-slate-950">Continuing in {countdown} seconds…</p>
+        <button type="button" onClick={() => setCountdownPaused((value) => !value)} className="mx-auto mt-2 flex min-h-11 items-center gap-2 px-3 text-sm font-bold text-[#003172]">
+          {countdownPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}{countdownPaused ? 'Resume countdown' : 'Pause countdown'}
+        </button>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Button className="min-h-12" onClick={() => setModal('information')}>Add information</Button>
+          <Button variant="outline" className="min-h-12" onClick={() => setModal('status')}>Skip</Button>
+        </div>
+      </AccessibleModal>
+
+      <AccessibleModal open={modal === 'information'} title="Add information" description="This is optional. Your original emergency request remains active." onClose={closeInformation}>
+        <AdditionalInfoForm
+          draft={draft}
+          onChange={setDraft}
+          onSend={sendInformation}
+          onSkip={closeInformation}
+          acceptedNotice={acceptedQueued && responder && station ? `${responder.name} from ${station.name} accepted your request. Your draft is preserved.` : undefined}
+          sending={sendingInfo}
+          error={infoError}
+        />
+      </AccessibleModal>
+
+      <AccessibleModal open={modal === 'status'} title={statusTitle} onClose={() => setModal(null)}>
+        {activeIncident && (
+          <div>
+            {activeIncident.assignedEmployeeId && responder && station ? (
+              <div className="border-l-4 border-emerald-600 bg-emerald-50 p-4 text-emerald-950"><p className="font-bold">{responder.name} {responder.surname} from {station.name} has accepted your emergency request.</p></div>
+            ) : activeIncident.deliveryState === 'sent' || activeIncident.deliveryState === 'no_responders' ? (
+              <p className="text-base leading-7 text-slate-700">Your emergency request has been sent to <strong>{station?.name}</strong>, the nearest appropriate station by straight-line distance. You will be notified as soon as a responder accepts your call.</p>
+            ) : activeIncident.deliveryState === 'failed' ? (
+              <p className="font-bold text-red-700">Request not sent. Your browser is offline or the submission failed.</p>
+            ) : (
+              <p className="font-bold text-[#003172]">{activeIncident.location ? 'Sending request…' : 'Location is unresolved. Enable location or add a landmark so a station can be selected.'}</p>
+            )}
+            <dl className="mt-5 divide-y divide-slate-200 rounded-xl bg-slate-50 px-4 text-sm shadow-inner">
+              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Incident reference</dt><dd className="font-extrabold text-slate-950">{activeIncident.reference}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Service</dt><dd className="font-extrabold text-slate-950">{serviceLabel(activeIncident.service)}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Station</dt><dd className="text-right font-extrabold text-slate-950">{station?.name ?? 'Not selected'}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-semibold text-slate-600">Additional information</dt><dd className="font-extrabold text-slate-950">{activeIncident.information.length ? 'Sent' : activeIncident.informationError ? 'Failed, draft kept' : 'Not sent'}</dd></div>
+            </dl>
+            {activeIncident.deliveryState === 'no_responders' && <p className="mt-4 font-semibold text-amber-900">No employees are currently on duty for this service. No responder has accepted yet.</p>}
+            {activeIncident.deliveryState === 'everyone_declined' && <p className="mt-4 font-semibold text-amber-900">Every offered responder declined. The request remains active and no responder has accepted yet.</p>}
+            <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button className="min-h-12" onClick={() => setModal(null)}>View request</Button><Button variant="outline" className="min-h-12" onClick={() => setModal('information')}>Add more information</Button></div>
+          </div>
+        )}
+      </AccessibleModal>
+
+      <AccessibleModal open={modal === 'accepted'} title="Help is on the way" onClose={() => setModal(null)}>
+        {responder && station && activeIncident && (
+          <div>
+            <div className="flex items-start gap-3 bg-emerald-50 p-4 text-emerald-950"><CheckCircle2 className="h-6 w-6 shrink-0" /><p className="font-bold leading-6">{responder.name} {responder.surname} from {station.name} has accepted your emergency request.</p></div>
+            <dl className="mt-5 grid gap-3 text-sm">
+              <div className="flex gap-3"><Info className="h-4 w-4 text-slate-500" /><div><dt className="font-semibold text-slate-500">Service</dt><dd className="font-bold">{serviceLabel(activeIncident.service)}</dd></div></div>
+              <div className="flex gap-3"><MapPin className="h-4 w-4 text-slate-500" /><div><dt className="font-semibold text-slate-500">Station</dt><dd className="font-bold">{station.name}</dd></div></div>
+              <div className="flex gap-3"><Clock3 className="h-4 w-4 text-slate-500" /><div><dt className="font-semibold text-slate-500">Accepted</dt><dd className="font-bold">{new Date(activeIncident.acceptedAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</dd></div></div>
+            </dl>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2"><Button onClick={() => setModal(null)}>View responder</Button><Button variant="outline" onClick={() => setModal(null)}>Close</Button></div>
+          </div>
+        )}
+      </AccessibleModal>
     </main>
   );
 }

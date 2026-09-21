@@ -38,7 +38,6 @@ export function App() {
           <Route path="/client/profile" element={<ClientOnly><ClientProfilePage /></ClientOnly>} />
           <Route path="/citizen" element={<Navigate to="/client" replace />} />
           <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/demo/sms" element={<Navigate to="/messages" replace />} />
           <Route path="/responder" element={<ResponderPage />} />
           <Route path="/responder/offers/:offerId" element={<ResponderOfferPage />} />
           <Route path="/supervisor" element={<SupervisorPage />} />

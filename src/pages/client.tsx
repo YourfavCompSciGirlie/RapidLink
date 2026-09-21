@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { AccessibleModal } from '@/components/accessible-modal';
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { ActiveIncidentPanel } from '@/features/emergency/components/active-incident-panel';
 import { AdditionalInfoForm } from '@/features/emergency/components/additional-info-form';
@@ -287,8 +286,7 @@ export default function ClientPage() {
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
-      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Offline — this device will save the workflow and synchronize after reconnection.</div>}
+      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Connection lost — updates will send automatically when connectivity returns.</div>}
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-9">
         <header>
           <div className="flex items-center justify-between gap-4"><p className="text-sm font-bold text-slate-600">Client emergency request</p><Link to="/client/profile" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-bold text-[#003172] hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"><Settings className="h-5 w-5" /> Profile</Link></div>
@@ -404,7 +402,7 @@ export default function ClientPage() {
             ) : activeIncident.deliveryState === 'sent' || activeIncident.deliveryState === 'no_responders' ? (
               <p className="text-base leading-7 text-slate-700">Your emergency request has been sent to <strong>{station?.name}</strong>, the nearest appropriate station by straight-line distance. You will be notified as soon as a responder accepts your call.</p>
             ) : activeIncident.deliveryState === 'failed' ? (
-              <p className="font-bold text-red-700">Request not sent. Your browser is offline or the submission failed.</p>
+              <p className="font-bold text-red-700">Request not sent. Check your connection and try again.</p>
             ) : (
               <p className="font-bold text-[#003172]">{activeIncident.location ? 'Sending request…' : 'Location is unresolved. Enable location or add a landmark so a station can be selected.'}</p>
             )}

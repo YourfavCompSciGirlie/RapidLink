@@ -34,7 +34,7 @@ export interface CapturedLocation {
   longitude: number;
   accuracy: number;
   capturedAt: string;
-  source: 'browser' | 'demo';
+  source: 'browser' | 'manual-area';
 }
 
 export interface ClientProfile {

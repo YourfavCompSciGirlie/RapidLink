@@ -2,7 +2,6 @@ import { AlertTriangle, CheckCircle2, Clock3, MapPin, Navigation, Phone, ShieldA
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { serviceLabel } from '@/features/emergency/config';
 import { useEmergency } from '@/features/emergency/emergency-context';
@@ -69,17 +68,16 @@ export default function ResponderOfferPage() {
   };
 
   if (!ready) {
-    return <main className="min-h-[calc(100vh-4rem)] bg-white"><ServiceNotice /><div className="mx-auto max-w-xl px-4 py-16 text-center"><p className="font-bold text-[#003172]" role="status">Loading incident offer…</p></div></main>;
+    return <main className="min-h-[calc(100vh-4rem)] bg-white"><div className="mx-auto max-w-xl px-4 py-16 text-center"><p className="font-bold text-[#003172]" role="status">Loading incident offer…</p></div></main>;
   }
 
   if (!offer || !incident || !employee) {
-    return <main className="min-h-[calc(100vh-4rem)] bg-white"><ServiceNotice /><div className="mx-auto max-w-xl px-4 py-16 text-center"><ShieldAlert className="mx-auto h-12 w-12 text-red-700" /><h1 className="mt-4 text-2xl font-extrabold text-[#003172]">Invalid or expired response link</h1><p className="mt-2 text-slate-700">This incident offer could not be found or is no longer available.</p></div></main>;
+    return <main className="min-h-[calc(100vh-4rem)] bg-white"><div className="mx-auto max-w-xl px-4 py-16 text-center"><ShieldAlert className="mx-auto h-12 w-12 text-red-700" /><h1 className="mt-4 text-2xl font-extrabold text-[#003172]">Invalid or expired response link</h1><p className="mt-2 text-slate-700">This incident offer could not be found or is no longer available.</p></div></main>;
   }
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
-      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Offline — response updates are saved on this device and will synchronize later.</div>}
+      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Connection lost — response updates will send automatically when connectivity returns.</div>}
       <div className="mx-auto max-w-2xl px-4 py-7 sm:px-6 sm:py-10">
         <header className="pb-5"><p className="text-sm font-bold text-slate-600">Responder offer for {employee.name} {employee.surname}</p><h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#003172]">{serviceLabel(incident.service)} request</h1><p className="mt-2 font-bold text-slate-700">Incident {incident.reference}</p></header>
 

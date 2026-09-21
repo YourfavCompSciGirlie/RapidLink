@@ -436,7 +436,7 @@ export async function createSession(code = generateRoomCode()) {
 
 export async function joinSession(code: string) {
   const normalized = normalizeRoomCode(code);
-  if (normalized.length !== 6) throw new Error('Enter a six-character room code.');
+  if (normalized.length !== 6) throw new Error('Enter a six-character access code.');
   storage()?.setItem(ACTIVE_SESSION_KEY, normalized);
   const response = await fetch(`/api/sessions/${normalized}`, { cache: 'no-store' }).catch(() => null);
   if (response?.ok) {
@@ -444,7 +444,7 @@ export async function joinSession(code: string) {
     const record = await response.json() as SessionRecord;
     writeLocal(normalized, record.state);
   } else if (!storage()?.getItem(stateKey(normalized))) {
-    if (response && response.status === 404) throw new Error('That room could not be found.');
+    if (response && response.status === 404) throw new Error('That workspace could not be found.');
     remoteAvailable = false;
     writeLocal(normalized, createInitialState());
   }

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEMO_COORDINATES } from './config';
+import { GA_RANKUWA_COORDINATES } from './config';
 import { createInitialState } from './fixtures';
 import { applyEmergencyAction, createSession, sessionService } from './session-service';
 import type { EmergencyAction, EmergencyState } from './types';
 
-const location = { ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' as const };
+const location = { ...GA_RANKUWA_COORDINATES, capturedAt: new Date().toISOString(), source: 'manual-area' as const };
 const apply = (state: ReturnType<typeof createInitialState>, event: EmergencyAction) => applyEmergencyAction(state, event);
 const registeredState = (): EmergencyState => {
   const state = createInitialState();

@@ -1,6 +1,6 @@
 import type { ProfileInput } from './profile-service';
 
-export type ProfileErrors = Partial<Record<keyof ProfileInput | 'pin' | 'confirmPin' | 'currentPin' | 'consent', string>>;
+export type ProfileErrors = Partial<Record<keyof ProfileInput | 'pin' | 'confirmPin' | 'currentPin', string>>;
 
 export const normalizePhone = (value: string) => value.replace(/[\s()-]/g, '').replace(/^\+27/, '0');
 export const isSouthAfricanPhone = (value: string) => /^0[6-8][0-9]{8}$/.test(normalizePhone(value));

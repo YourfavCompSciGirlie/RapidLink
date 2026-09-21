@@ -2,7 +2,6 @@ import { ExternalLink, Inbox, MessageSquareText } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { serviceLabel } from '@/features/emergency/config';
 import { useEmergency } from '@/features/emergency/emergency-context';
@@ -17,7 +16,6 @@ export default function ResponderMessagesPage() {
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
       <div className="mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
         <header className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>

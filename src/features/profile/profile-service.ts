@@ -84,6 +84,3 @@ export const changeCancellationPin = async (currentPin: string, nextPin: string)
   sessionService.changePin(await createPinRecord(nextPin));
   return { ok: true, attemptsRemaining: PIN_MAX_ATTEMPTS } satisfies PinVerificationResult;
 };
-
-export const profileStorageLimitations = 'This profile is remembered only in this browser and device. Clearing browser data or using another device requires registration again.';
-export const pinSecurityLimitations = 'In production, PIN hashing and verification must be enforced by a secure backend. Browser storage is not a production security boundary.';

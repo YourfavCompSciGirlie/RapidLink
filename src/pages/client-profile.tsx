@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useEmergency } from '@/features/emergency/emergency-context';
 import { pinFieldClass, ProfileFields } from '@/features/profile/profile-fields';
-import { changeCancellationPin, pinSecurityLimitations, profileStorageLimitations, updateProfile } from '@/features/profile/profile-service';
+import { changeCancellationPin, updateProfile } from '@/features/profile/profile-service';
 import { normalizePhone, validatePin, validateProfile, type ProfileErrors } from '@/features/profile/validation';
 
 export default function ClientProfilePage() {
@@ -64,7 +64,6 @@ export default function ClientProfilePage() {
           <div className="sm:col-span-2"><div className="min-h-6 text-sm font-semibold" aria-live="polite">{pinMessage}</div><Button className="mt-3 min-h-12">Change PIN</Button></div>
         </form>
       </section>
-      <div className="mt-8 space-y-2 border-t border-slate-200 pt-6 text-sm leading-6 text-slate-600"><p>{profileStorageLimitations}</p><p>{pinSecurityLimitations}</p><p>There is no frontend-only PIN recovery. Production recovery requires verified email or phone ownership.</p></div>
     </div></main>
   );
 }

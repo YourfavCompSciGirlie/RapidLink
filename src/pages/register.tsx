@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useEmergency } from '@/features/emergency/emergency-context';
 import { emptyProfileInput, pinFieldClass, ProfileFields } from '@/features/profile/profile-fields';
-import { profileStorageLimitations, registerProfile } from '@/features/profile/profile-service';
+import { registerProfile } from '@/features/profile/profile-service';
 import { normalizePhone, validatePin, validateProfile, type ProfileErrors } from '@/features/profile/validation';
 import type { RegistrationStatus } from '@/features/emergency/types';
 
@@ -15,7 +15,6 @@ export default function RegisterPage() {
   const [profile, setProfile] = useState(emptyProfileInput);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [status, setStatus] = useState<RegistrationStatus>('NOT_REGISTERED');
   const [message, setMessage] = useState('');
@@ -24,7 +23,6 @@ export default function RegisterPage() {
     event.preventDefault();
     if (status === 'SAVING') return;
     const nextErrors: ProfileErrors = { ...validateProfile(profile), ...validatePin(pin, confirmPin) };
-    if (!consent) nextErrors.consent = 'Confirm that you understand this service does not contact public emergency services.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
       setStatus('SAVE_FAILED');
@@ -64,10 +62,7 @@ export default function RegisterPage() {
               <label className="font-bold text-slate-800">Confirm cancellation PIN<input className={pinFieldClass} type="password" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="new-password" value={confirmPin} onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 6))} aria-invalid={Boolean(errors.confirmPin)} />{errors.confirmPin && <span className="mt-1 block text-sm font-semibold text-red-700">{errors.confirmPin}</span>}</label>
             </div>
           </fieldset>
-          <label className="mt-7 flex items-start gap-3 bg-slate-50 p-4 text-base font-semibold text-slate-800"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1 h-5 w-5 accent-[#003172]" /><span>I understand this application is currently a demonstration and does not contact real emergency services.</span></label>
-          {errors.consent && <p className="mt-1 text-sm font-semibold text-red-700">{errors.consent}</p>}
-          <p className="mt-5 text-sm leading-6 text-slate-600">{profileStorageLimitations}</p>
-          <div aria-live="polite" className="mt-4 min-h-6 text-sm font-semibold text-slate-700">{message}</div>
+          <div aria-live="polite" className="mt-7 min-h-6 text-sm font-semibold text-slate-700">{message}</div>
           <Button type="submit" className="mt-4 min-h-14 w-full text-base sm:w-auto sm:min-w-56" disabled={status === 'SAVING'}>{status === 'SAVING' ? 'Saving profile…' : 'Complete registration'}</Button>
         </form>
       </div>

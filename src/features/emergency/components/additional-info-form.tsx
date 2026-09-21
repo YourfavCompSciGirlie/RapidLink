@@ -195,7 +195,7 @@ export function AdditionalInfoForm({
         </Button>
         <Button type="button" variant="outline" className="min-h-12" onClick={onSkip}>Skip for now</Button>
       </div>
-      {draft.dirty && <p className="text-sm font-semibold text-amber-800">Draft saved locally. It is not sent until you select “Send additional information”.</p>}
+      {draft.dirty && <p className="text-sm font-semibold text-amber-800">Draft not sent yet. Select “Send additional information” when ready.</p>}
     </form>
   );
 }

@@ -3,18 +3,24 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 import { App } from '@/app';
+import { readState } from '@/features/emergency/session-service';
 
 const completeRegistration = () => {
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Naledi' } });
+  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Naledi' } });
   fireEvent.change(screen.getByLabelText('Surname'), { target: { value: 'Mokoena' } });
   fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'naledi@example.test' } });
   fireEvent.change(screen.getByLabelText('South African ID number'), { target: { value: '9001015009087' } });
-  fireEvent.change(screen.getByLabelText('Client mobile number'), { target: { value: '0725550147' } });
-  fireEvent.change(screen.getByLabelText('Next-of-kin name'), { target: { value: 'Refilwe Mokoena' } });
-  fireEvent.change(screen.getByLabelText('Next-of-kin mobile number'), { target: { value: '0735550191' } });
-  fireEvent.change(screen.getByLabelText('Six-digit cancellation PIN'), { target: { value: '123456' } });
-  fireEvent.change(screen.getByLabelText('Confirm cancellation PIN'), { target: { value: '123456' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Complete registration' }));
+  fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '725550147' } });
+  fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
+
+  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Refilwe' } });
+  fireEvent.change(screen.getByLabelText('Surname'), { target: { value: 'Mokoena' } });
+  fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '735550191' } });
+  fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
+
+  fireEvent.change(screen.getByLabelText('Cancellation PIN'), { target: { value: '123456' } });
+  fireEvent.change(screen.getByLabelText('Confirm PIN'), { target: { value: '123456' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Finish setup' }));
 };
 
 describe('client registration routing', () => {
@@ -23,22 +29,45 @@ describe('client registration routing', () => {
   it('opens the client dashboard immediately after registration', async () => {
     render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
 
-    await screen.findByRole('heading', { name: 'Register emergency details' });
+    await screen.findByRole('heading', { name: 'Create your emergency profile' });
     completeRegistration();
 
     expect(await screen.findByRole('heading', { name: 'What help do you need?' })).toBeInTheDocument();
     expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
+    expect(readState().profile?.phone).toBe('0725550147');
+    expect(readState().profile?.nextOfKin).toMatchObject({ name: 'Refilwe Mokoena', phone: '0735550191' });
   });
 
   it('remembers the client and skips registration on a later visit', async () => {
     const first = render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
-    await screen.findByRole('heading', { name: 'Register emergency details' });
+    await screen.findByRole('heading', { name: 'Create your emergency profile' });
     completeRegistration();
     await screen.findByRole('heading', { name: 'What help do you need?' });
     first.unmount();
 
     render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
     await waitFor(() => expect(screen.getByRole('heading', { name: 'What help do you need?' })).toBeInTheDocument());
-    expect(screen.queryByRole('heading', { name: 'Register emergency details' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Create your emergency profile' })).not.toBeInTheDocument();
+  });
+
+  it('allows the cancellation PIN to be checked before finishing', async () => {
+    render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
+    await screen.findByRole('heading', { name: 'Create your emergency profile' });
+
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Naledi' } });
+    fireEvent.change(screen.getByLabelText('Surname'), { target: { value: 'Mokoena' } });
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'naledi@example.test' } });
+    fireEvent.change(screen.getByLabelText('South African ID number'), { target: { value: '9001015009087' } });
+    fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '725550147' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Refilwe' } });
+    fireEvent.change(screen.getByLabelText('Surname'), { target: { value: 'Mokoena' } });
+    fireEvent.change(screen.getByLabelText('Mobile number'), { target: { value: '735550191' } });
+    fireEvent.click(screen.getByRole('button', { name: /Continue/ }));
+
+    const pin = screen.getByLabelText('Cancellation PIN');
+    expect(pin).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', { name: 'Show cancellation pin' }));
+    expect(pin).toHaveAttribute('type', 'text');
   });
 });

@@ -1,6 +1,6 @@
-import { AlertTriangle, CheckCircle2, Clock3, MapPin, Navigation, Phone, ShieldAlert, UserRound, XCircle } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, MapPin, Navigation, Phone, ShieldAlert, UserRound, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { serviceLabel } from '@/features/emergency/config';
@@ -18,7 +18,7 @@ const failureCopy: Record<NonNullable<AcceptResult['reason']>, string> = {
 
 export default function ResponderOfferPage() {
   const params = useParams<{ offerId: string }>();
-  const { state, online, ready, refresh } = useEmergency();
+  const { state, online, ready, refresh, sessionCode } = useEmergency();
   const [resultMessage, setResultMessage] = useState('');
   const [accepting, setAccepting] = useState(false);
   const offer = state.offers.find((item) => item.id === params.offerId);
@@ -30,6 +30,10 @@ export default function ResponderOfferPage() {
   const onDuty = employee ? employeeDuty(state, employee.id) : false;
   const busyElsewhere = employee ? employeeBusy(state, employee.id, incident?.id) : false;
   const details = useMemo(() => assignedToThisEmployee && incident ? incident.information : [], [assignedToThisEmployee, incident]);
+
+  useEffect(() => {
+    if (employee) window.localStorage.setItem(`rapidlink-responder-${sessionCode ?? 'local'}`, employee.id);
+  }, [employee, sessionCode]);
 
   const accept = async () => {
     if (!offer) return;
@@ -68,23 +72,28 @@ export default function ResponderOfferPage() {
   };
 
   if (!ready) {
-    return <main className="min-h-[calc(100vh-4rem)] bg-white"><div className="mx-auto max-w-xl px-4 py-16 text-center"><p className="font-bold text-[#003172]" role="status">Loading incident offer…</p></div></main>;
+    return <main className="min-h-[calc(100vh-4rem)] bg-slate-50"><div className="mx-auto max-w-xl px-4 py-16 text-center"><p className="font-bold text-[#003172]" role="status">Loading request…</p></div></main>;
   }
 
   if (!offer || !incident || !employee) {
-    return <main className="min-h-[calc(100vh-4rem)] bg-white"><div className="mx-auto max-w-xl px-4 py-16 text-center"><ShieldAlert className="mx-auto h-12 w-12 text-red-700" /><h1 className="mt-4 text-2xl font-extrabold text-[#003172]">Invalid or expired response link</h1><p className="mt-2 text-slate-700">This incident offer could not be found or is no longer available.</p></div></main>;
+    return <main className="min-h-[calc(100vh-4rem)] bg-slate-50"><div className="mx-auto max-w-xl px-4 py-16 text-center"><ShieldAlert className="mx-auto h-12 w-12 text-red-700" /><h1 className="mt-4 text-2xl font-extrabold text-[#003172]">Request unavailable</h1><p className="mt-2 text-slate-600">This request has expired or cannot be found.</p></div></main>;
   }
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-white">
-      {!online && <div className="bg-amber-700 px-4 py-3 text-center text-sm font-bold text-white" role="status">Connection lost — response updates will send automatically when connectivity returns.</div>}
-      <div className="mx-auto max-w-2xl px-4 py-7 sm:px-6 sm:py-10">
-        <header className="pb-5"><p className="text-sm font-bold text-slate-600">Responder offer for {employee.name} {employee.surname}</p><h1 className="mt-1 text-3xl font-extrabold tracking-tight text-[#003172]">{serviceLabel(incident.service)} request</h1><p className="mt-2 font-bold text-slate-700">Incident {incident.reference}</p></header>
+    <main className="min-h-[calc(100vh-4rem)] bg-slate-50">
+      {!online && <div className="bg-amber-700 px-4 py-2.5 text-center text-sm font-semibold text-white" role="status">Offline · updates are saved on this device.</div>}
+      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-9">
+        <header className="pb-3">
+          <Link to="/messages" className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#003172]"><ArrowLeft className="h-4 w-4" /> Requests</Link>
+          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-400">{incident.reference}</p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight text-[#003172]">{serviceLabel(incident.service)} request</h1>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{employee.name} {employee.surname}</p>
+        </header>
 
         {!assignedToThisEmployee && (
-          <section className="mt-6" aria-labelledby="offer-details-heading">
-            <h2 id="offer-details-heading" className="text-xl font-extrabold text-slate-950">Incident offer</h2>
-            <dl className="elevated-surface mt-4 divide-y divide-slate-100 rounded-2xl bg-white px-5">
+          <section className="mt-5" aria-labelledby="offer-details-heading">
+            <h2 id="offer-details-heading" className="text-xl font-extrabold text-slate-950">Request details</h2>
+            <dl className="mt-3 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-5 shadow-[0_10px_28px_rgba(15,23,42,0.07)]">
               <div className="flex gap-3 py-4"><MapPin className="mt-0.5 h-5 w-5 text-slate-500" /><div><dt className="font-semibold text-slate-500">Approximate area</dt><dd className="font-extrabold text-slate-950">{station?.area ?? 'Location pending'}</dd></div></div>
               <div className="flex gap-3 py-4"><Clock3 className="mt-0.5 h-5 w-5 text-slate-500" /><div><dt className="font-semibold text-slate-500">Time reported</dt><dd className="font-extrabold text-slate-950">{new Date(incident.createdAt).toLocaleString()}</dd></div></div>
               <div className="flex gap-3 py-4"><UserRound className="mt-0.5 h-5 w-5 text-slate-500" /><div><dt className="font-semibold text-slate-500">Current assignment status</dt><dd className="font-extrabold text-slate-950">{incident.status === 'CANCELLED' ? 'Incident cancelled' : assignedElsewhere ? 'Already accepted' : offer.status === 'closed' ? 'Offer closed' : offer.status === 'declined' ? 'You declined this offer' : !employee.active ? 'Employee inactive' : !onDuty ? 'Employee off duty' : busyElsewhere ? 'Already busy' : 'Open for response'}</dd></div></div>
@@ -93,19 +102,18 @@ export default function ResponderOfferPage() {
             {incident.status === 'CANCELLED' && <div className="mt-5 flex gap-3 bg-slate-100 p-4 font-bold text-slate-900"><XCircle className="h-5 w-5 shrink-0" /><p>The client cancelled this emergency request. This offer is no longer active.</p></div>}
             {resultMessage && <div className="mt-5 border-l-4 border-[#003172] bg-blue-50 p-4 font-bold text-[#003172]" role="status">{resultMessage}</div>}
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button className="min-h-14 text-base" onClick={() => void accept()} disabled={accepting || assignedElsewhere || offer.status !== 'open' || incident.status !== 'WAITING_FOR_RESPONDER'}>{accepting ? 'Checking…' : 'Respond'}</Button>
+              <Button className="min-h-14 text-base" onClick={() => void accept()} disabled={accepting || assignedElsewhere || offer.status !== 'open' || incident.status !== 'WAITING_FOR_RESPONDER' || !employee.active || !onDuty || busyElsewhere}>{accepting ? 'Accepting…' : 'Accept request'}</Button>
               <Button variant="outline" className="min-h-14 border-red-300 text-base text-red-800 hover:bg-red-50" onClick={decline} disabled={assignedElsewhere || offer.status !== 'open'}>Decline</Button>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-600">Opening this page does not accept the incident. Private client information is fetched into this interface only after a successful response.</p>
           </section>
         )}
 
         {assignedToThisEmployee && (
           <section className="mt-6" aria-labelledby="assigned-heading">
-            <div className="flex gap-3 bg-emerald-50 p-4 text-emerald-950"><CheckCircle2 className="h-6 w-6 shrink-0" /><div><h2 id="assigned-heading" className="font-extrabold">Incident assigned to you</h2><p className="mt-1 text-sm font-semibold">Accepted {new Date(incident.acceptedAt!).toLocaleString()}</p></div></div>
+            <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"><CheckCircle2 className="h-6 w-6 shrink-0" /><div><h2 id="assigned-heading" className="font-extrabold">Assigned to you</h2><p className="mt-1 text-sm font-semibold">Accepted {new Date(incident.acceptedAt!).toLocaleString()}</p></div></div>
             {incident.status === 'CANCELLATION_REQUESTED' && <div className="mt-5 border-l-4 border-red-700 bg-red-50 p-4 text-red-950" role="alert"><h3 className="font-extrabold">Client requested cancellation</h3><p className="mt-1 text-sm font-semibold">Acknowledge only if the response can safely stop. Continue if assistance is still required or you are already on scene.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Button variant="emergency" className="min-h-12" onClick={() => respondToCancellation(true)}>Acknowledge cancellation</Button><Button variant="outline" className="min-h-12" onClick={() => respondToCancellation(false)}>Continue response</Button></div></div>}
             {incident.status === 'CANCELLED' && <div className="mt-5 bg-slate-100 p-4 font-bold text-slate-900" role="status">This emergency request has been cancelled. Do not continue the response.</div>}
-            <div className="elevated-surface mt-6 bg-white p-5 sm:rounded-2xl">
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.07)]">
               <h3 className="text-xl font-extrabold text-[#003172]">Client details</h3>
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div><dt className="text-sm font-semibold text-slate-500">Client</dt><dd className="font-extrabold">{state.profile?.name} {state.profile?.surname}</dd></div>
@@ -116,16 +124,16 @@ export default function ResponderOfferPage() {
               <div className="mt-5 grid grid-cols-2 gap-3"><Button asChild><a href={`tel:${state.profile?.phone.replace(/\s/g, '') ?? ''}`}><Phone className="h-4 w-4" /> Call client</a></Button><Button asChild variant="outline"><a href={incident.location ? `https://www.google.com/maps/dir/?api=1&destination=${incident.location.latitude},${incident.location.longitude}` : '#'} target="_blank" rel="noreferrer"><Navigation className="h-4 w-4" /> Navigate</a></Button></div>
             </div>
 
-            <div className="elevated-surface mt-5 bg-white p-5 sm:rounded-2xl"><h3 className="text-lg font-extrabold text-[#003172]">Additional information</h3>{details.length ? <div className="mt-3 space-y-4">{details.map((info) => <div key={info.id} className="rounded-xl bg-slate-50 p-4 shadow-inner"><p className="font-semibold text-slate-900">{info.happened || 'No description supplied.'}</p>{info.landmark && <p className="mt-1 text-sm text-slate-700">Access: {info.landmark}</p>}<div className="mt-3 grid gap-3 sm:grid-cols-2">{info.attachments.map((attachment) => attachment.kind === 'photo' ? <img key={attachment.id} src={attachment.dataUrl} alt="Client attachment" width={600} height={400} className="max-h-56 w-full rounded-lg object-cover" /> : <audio key={attachment.id} controls src={attachment.dataUrl} className="w-full" />)}</div></div>)}</div> : <p className="mt-2 text-sm text-slate-600">No additional information has been sent. New updates will appear here.</p>}</div>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.07)]"><h3 className="text-lg font-extrabold text-[#003172]">Additional information</h3>{details.length ? <div className="mt-3 space-y-4">{details.map((info) => <div key={info.id} className="rounded-xl bg-slate-50 p-4"><p className="font-semibold text-slate-900">{info.happened || 'No description supplied.'}</p>{info.landmark && <p className="mt-1 text-sm text-slate-700">Access: {info.landmark}</p>}<div className="mt-3 grid gap-3 sm:grid-cols-2">{info.attachments.map((attachment) => attachment.kind === 'photo' ? <img key={attachment.id} src={attachment.dataUrl} alt="Client attachment" width={600} height={400} className="max-h-56 w-full rounded-lg object-cover" /> : <audio key={attachment.id} controls src={attachment.dataUrl} className="w-full" />)}</div></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No additional information.</p>}</div>
 
-            <div className="mt-5"><h3 className="text-lg font-extrabold text-[#003172]">Incident progress</h3><div className="mt-3 grid grid-cols-3 gap-2">{(['accepted', 'en_route', 'arrived'] as IncidentProgress[]).map((progress) => <Button key={progress} variant={incident.progress === progress ? 'primary' : 'outline'} onClick={() => updateProgress(progress)} disabled={['CANCELLATION_REQUESTED', 'CANCELLED', 'COMPLETED'].includes(incident.status)}>{progress === 'en_route' ? 'En route' : progress.charAt(0).toUpperCase() + progress.slice(1)}</Button>)}</div>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-lg font-extrabold text-[#003172]">Progress</h3><div className="mt-3 grid grid-cols-3 gap-2">{(['accepted', 'en_route', 'arrived'] as IncidentProgress[]).map((progress) => <Button key={progress} variant={incident.progress === progress ? 'primary' : 'outline'} onClick={() => updateProgress(progress)} disabled={['CANCELLATION_REQUESTED', 'CANCELLED', 'COMPLETED'].includes(incident.status)}>{progress === 'en_route' ? 'En route' : progress.charAt(0).toUpperCase() + progress.slice(1)}</Button>)}</div>
               <div className="mt-4 bg-slate-50 p-4"><p className="font-bold text-slate-900">Client confirmation is required before closure.</p><p className="mt-1 text-sm text-slate-600">Mark the response as arrived, then ask the client to confirm that help was received.</p>{incident.completionRequestStatus === 'pending' && <p className="mt-3 font-bold text-[#003172]" role="status">Waiting for the client to confirm help received.</p>}{incident.completionRequestStatus === 'declined' && <p className="mt-3 font-bold text-amber-900" role="status">The client says they still need help. Continue the response.</p>}{incident.completionRequestStatus === 'confirmed' && <p className="mt-3 font-bold text-emerald-800" role="status">The client confirmed help received. Incident closed.</p>}<Button className="mt-4 min-h-12 w-full" onClick={requestClosure} disabled={incident.status !== 'ARRIVED' || incident.completionRequestStatus === 'pending'}>{incident.completionRequestStatus === 'declined' ? 'Request confirmation again' : 'Request incident closure'}</Button></div>
             </div>
             {resultMessage && <div className="mt-4 border-l-4 border-[#003172] bg-blue-50 p-4 font-bold text-[#003172]" role="status">{resultMessage}</div>}
           </section>
         )}
 
-        {offer.status === 'declined' && !assignedElsewhere && <div className="mt-6 flex gap-3 bg-slate-100 p-4 text-slate-900"><XCircle className="h-5 w-5 shrink-0" /><p className="font-bold">You declined this offer. It remains available to other responders.</p></div>}
+        {offer.status === 'declined' && !assignedElsewhere && <div className="mt-6 flex gap-3 rounded-2xl bg-slate-200 p-4 text-slate-900"><XCircle className="h-5 w-5 shrink-0" /><p className="font-bold">You declined this request.</p></div>}
       </div>
     </main>
   );

@@ -1,75 +1,62 @@
-# Tshwane RapidLink
+# RapidLink
 
-Tshwane RapidLink is a dispatcher-free emergency-response workflow. A client starts a request, on-duty station employees receive response offers, and the first eligible responder to accept claims the incident.
+RapidLink is an installable emergency-response prototype. A client starts a request, eligible on-duty responders receive an offer, and the first responder to accept owns the incident. A supervisor manages responder records and attendance.
 
-This repository is an npm-workspaces monorepo containing a Next.js frontend, an Express API, and a shared TypeScript contracts package.
+The application is a React single-page PWA built with Vite, TypeScript and Tailwind CSS. It works as a complete local demonstration without external services and can use Supabase to synchronize an isolated room across devices. Protected writes run through small Vercel Functions in `/api`.
 
-## Repository structure
+## Run locally
 
-```text
-apps/
-  backend/     Express API
-  frontend/    Next.js application
-packages/
-  shared/      Shared API contracts and types
-```
-
-Feature code should stay close to the domain it belongs to. Frontend features live in `apps/frontend/src/features`, while backend features live in `apps/backend/src/modules` and expose their own routes, controllers, and services as they are added.
-
-## Requirements
-
-- Node.js 22
-- npm 11
-
-## Getting started
+Requirements: Node.js 22 and npm 11.
 
 ```bash
 npm install
-cp apps/backend/.env.example apps/backend/.env
-cp apps/frontend/.env.example apps/frontend/.env.local
+cp .env.example .env.local
 npm run dev
 ```
 
-The frontend runs at [http://localhost:3000](http://localhost:3000). The existing API scaffold still runs at [http://localhost:4000](http://localhost:4000), but this frontend does not call it.
+Open [http://localhost:5173](http://localhost:5173), create a room, and use the Client, Responder and Supervisor cards. Separate tabs in the same browser continue to work if the network is disconnected.
 
-## Frontend routes
+The plain Vite development server uses the local-only fallback because it does not run Vercel Functions. Use `vercel dev` when you need to exercise the Supabase-backed API locally, or test cross-device synchronization on the deployed preview.
 
-- [http://localhost:3000/client](http://localhost:3000/client) — primary client emergency request and live status
-- [http://localhost:3000/supervisor](http://localhost:3000/supervisor) — station employee management
-- [http://localhost:3000/supervisor/attendance](http://localhost:3000/supervisor/attendance) — daily attendance and shifts
-- [http://localhost:3000/responder](http://localhost:3000/responder) — responder entry point
-- `http://localhost:3000/responder/offers/{offerId}` — unique responder link
-- [http://localhost:3000/messages](http://localhost:3000/messages) — responder message inbox
+## Demo flow
 
-Start the frontend once, then keep these URLs open in separate browser tabs. They deliberately use one origin so browser storage, `BroadcastChannel`, and the incident lock remain shared across every interface. The root URL redirects directly to `/client`; the legacy `/citizen` URL remains available as a compatibility route.
+1. Create a room on `/`.
+2. Open the Client interface and enable location or use the Ga-Rankuwa demo location.
+3. Press SOS or choose a service. The request is transmitted after the five-second undo window.
+4. Open Responder Messages on another tab or scan its QR code on another device.
+5. Open an offer and accept it.
+6. Update the response through En route, Arrived and Completed.
+7. Watch the client receive each change.
 
-Enable browser location or choose **Use Pretoria Central** on the client route before starting a request, then open the responder messages in another tab. The large **SOS** action requests both Police and Ambulance; the three smaller circular actions request a single service. Two different open responder links can demonstrate first-come-first-served acceptance.
+The Supervisor interface controls employee records and attendance. Reset demonstration returns the room to its initial seeded state.
 
-## Current limits
+## Cross-device rooms with Supabase
 
-The emergency workflow uses browser storage, `BroadcastChannel`, and a Web Lock. It shares state only across tabs on the same origin and browser profile. It does not send real SMS messages or contact public emergency services. Different physical devices do not share this state.
-
-Production requires an authoritative backend for durable incident storage, atomic assignment across devices, authenticated responder links, supervisor authentication, station-scoped authorisation, SMS delivery, attachment storage, audit retention, and server-side privacy enforcement. Browser role views and hidden routes are not production security.
-
-## Commands
+Create a Supabase project and run [`supabase/migrations/001_rapidlink_sessions.sql`](supabase/migrations/001_rapidlink_sessions.sql) in its SQL editor. Add these values to `.env.local` and the Vercel project:
 
 ```bash
-npm run dev        # Run all workspaces in watch mode
-npm run build      # Create production builds
-npm run lint       # Lint all workspaces
-npm run typecheck  # Type-check all workspaces
-npm test           # Run all tests once
+VITE_APP_URL=https://your-project.vercel.app
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-Workspace-specific commands can be run with npm's workspace flag, for example:
+The service-role key must remain server-only. All remote writes pass through Vercel Functions; only the URL and anonymous key are exposed to Vite. If Supabase is unavailable or not configured, rooms fall back to local-only operation.
+
+## PWA and offline behavior
+
+The Vite PWA build generates the web manifest and service worker, precaches the application shell and hashed assets, and retains the designed offline route. Open the deployed HTTPS site and choose Install when prompted. Actions are applied locally and queued in order; they synchronize when connectivity returns.
+
+Cross-device synchronization requires connectivity. Offline demonstrations work across tabs on the same installed device.
+
+## Deployment
+
+Import the repository into Vercel, select the Vite framework preset, add the environment variables above, and deploy. No root-directory override or separate backend deployment is required; Vercel deploys the functions in `/api` with the SPA.
 
 ```bash
-npm run dev --workspace=@rapidlink/frontend
-npm test --workspace=@rapidlink/backend
+npm run typecheck
+npm test
+npm run build
 ```
 
-## Environment configuration
-
-The committed `.env.example` files document the required local configuration. Real `.env` files are ignored and must not be committed.
-
-No external services are wired into the scaffold yet. Supabase, OpenAI, maps, WhatsApp, and USSD integrations will be introduced with the features that use them.
+RapidLink uses fictional seeded people and does not contact public emergency services. For an actual emergency, call 112.

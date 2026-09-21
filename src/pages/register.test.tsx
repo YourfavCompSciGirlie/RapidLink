@@ -32,7 +32,7 @@ describe('client registration routing', () => {
     await screen.findByRole('heading', { name: 'Create your emergency profile' });
     completeRegistration();
 
-    expect(await screen.findByRole('heading', { name: 'What help do you need?' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Request emergency help' })).toBeInTheDocument();
     expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
     expect(readState().profile?.phone).toBe('0725550147');
     expect(readState().profile?.nextOfKin).toMatchObject({ name: 'Refilwe Mokoena', phone: '0735550191' });
@@ -42,11 +42,11 @@ describe('client registration routing', () => {
     const first = render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'Create your emergency profile' });
     completeRegistration();
-    await screen.findByRole('heading', { name: 'What help do you need?' });
+    await screen.findByRole('heading', { name: 'Request emergency help' });
     first.unmount();
 
     render(<MemoryRouter initialEntries={['/register']}><App /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'What help do you need?' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Request emergency help' })).toBeInTheDocument());
     expect(screen.queryByRole('heading', { name: 'Create your emergency profile' })).not.toBeInTheDocument();
   });
 

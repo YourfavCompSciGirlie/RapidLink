@@ -31,7 +31,7 @@ describe('client emergency activation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enable' }));
     await screen.findByRole('heading', { name: 'Location ready' });
     fireEvent.click(screen.getByRole('button', { name: /^Police$/ }));
-    expect(screen.getByRole('heading', { name: 'Distress signal sent' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Alert sent' })).toBeInTheDocument();
     expect(readState().incidents).toHaveLength(1);
     await waitFor(() => expect(readState().offers.length).toBeGreaterThan(0));
   });

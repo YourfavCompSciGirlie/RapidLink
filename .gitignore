@@ -1,5 +1,4 @@
 node_modules/
-.next/
 dist/
 coverage/
 *.tsbuildinfo
@@ -12,4 +11,4 @@ npm-debug.log*
 .idea/
 .vscode/
 .eslintcache
-.turbo/
+.vercel

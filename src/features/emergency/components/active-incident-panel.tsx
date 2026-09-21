@@ -29,8 +29,6 @@ export function ActiveIncidentPanel({
   onAddInformation,
   onView,
   onRetry,
-  onCancel,
-  canCancel = true,
 }: {
   incident: Incident;
   station?: Station;
@@ -38,8 +36,6 @@ export function ActiveIncidentPanel({
   onAddInformation: () => void;
   onView: () => void;
   onRetry: () => void;
-  onCancel: () => void;
-  canCancel?: boolean;
 }) {
   const failed = incident.deliveryState === 'failed';
   const accepted = Boolean(incident.assignedEmployeeId);
@@ -68,14 +64,13 @@ export function ActiveIncidentPanel({
       {incident.cancellationResponse === 'continued' && <div className="mt-4 border-l-4 border-amber-600 bg-amber-50 p-4 text-amber-950" role="status"><p className="font-extrabold">Response continuing</p><p className="mt-1 text-sm font-semibold">The responder is continuing because assistance is still required or they are already on scene.</p></div>}
 
       {incident.informationError && <p className="mt-4 text-sm font-semibold text-red-700" role="alert">{incident.informationError} Your original request remains active.</p>}
-      <div className="mt-5 grid gap-2 sm:grid-cols-3">
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
         {failed ? (
           <Button className="min-h-12" onClick={onRetry}>Retry request</Button>
         ) : (
           <Button className="min-h-12" onClick={onView}>View request</Button>
         )}
         <Button variant="outline" className="min-h-12" onClick={onAddInformation}>Add information</Button>
-        {canCancel && <Button variant="outline" className="min-h-12" onClick={onCancel}>Cancel request</Button>}
       </div>
     </section>
   );

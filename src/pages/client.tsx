@@ -49,6 +49,7 @@ export default function ClientPage() {
   const [checkingPin, setCheckingPin] = useState(false);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
   const [cancellationResult, setCancellationResult] = useState<'cancelled' | 'requested' | null>(null);
+  const [searchCountdownSeconds, setSearchCountdownSeconds] = useState(0);
   const activationGuard = useRef(false);
   const initializedAssignment = useRef(false);
   const previousAssignment = useRef<string | undefined>();
@@ -103,6 +104,19 @@ export default function ClientPage() {
     const saved = Number(window.localStorage.getItem(`rapidlink-escalation-seen-${activeIncidentId}`) ?? '1');
     seenEscalationStage.current = Number.isFinite(saved) ? saved : 1;
   }, [activeIncidentId]);
+
+  useEffect(() => {
+    if (modal !== 'prompt' || !activeIncident?.nextEscalationAt) {
+      setSearchCountdownSeconds(0);
+      return;
+    }
+    const updateCountdown = () => {
+      setSearchCountdownSeconds(Math.max(0, Math.ceil((Date.parse(activeIncident.nextEscalationAt!) - Date.now()) / 1000)));
+    };
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeIncident?.nextEscalationAt, modal]);
 
   useEffect(() => {
     if (!activeIncident || activeIncident.searchStage <= seenEscalationStage.current) return;
@@ -342,8 +356,6 @@ export default function ClientPage() {
               onAddInformation={() => setModal('information')}
               onView={() => setModal('status')}
               onRetry={() => { sessionService.submitIncident(activeIncident.id); refresh(); }}
-              onCancel={() => { setCancellationPin(''); setCancellationError(''); setModal('cancellation'); }}
-              canCancel={activeIncident.status !== 'CANCELLATION_REQUESTED'}
             />
           </div>
         )}
@@ -362,7 +374,7 @@ export default function ClientPage() {
 
       </div>
 
-      <AccessibleModal open={modal === 'prompt'} title="Request sent" description="Add details if you can. Your emergency request does not depend on completing this step." onClose={() => setModal('status')}>
+      <AccessibleModal open={modal === 'prompt'} title="Distress signal sent" description="Your emergency request was sent immediately. You can add information while responders are being contacted." onClose={() => setModal('status')}>
         <div className="rounded-lg bg-blue-50 p-4" role="status" aria-live="polite">
           <p className="font-bold text-[#003172]">
             {!activeIncident || activeIncident.deliveryState === 'pending'
@@ -373,9 +385,17 @@ export default function ClientPage() {
           </p>
           {activeIncident?.deliveryState === 'failed' && <p className="mt-1 text-sm font-semibold text-red-700">Check your connection and retry from the active request panel.</p>}
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <Button className="min-h-12" onClick={() => setModal('information')}>Add information</Button>
-          <Button variant="outline" className="min-h-12" onClick={() => setModal('status')}>Skip</Button>
+        {activeIncident?.status === 'WAITING_FOR_RESPONDER' && (
+          <div className="mt-5 rounded-xl bg-slate-50 px-5 py-4 text-center">
+            <p className="text-sm font-bold text-slate-600">Expanding the station search in</p>
+            <p className="mt-1 text-5xl font-black tabular-nums text-[#003172]" aria-hidden="true">{searchCountdownSeconds}</p>
+            <p className="text-sm font-semibold text-slate-600">seconds</p>
+          </div>
+        )}
+        <div className="mt-5 grid gap-3">
+          <Button className="min-h-12 w-full" onClick={() => setModal('information')}>Add additional information</Button>
+          {activeIncident && activeIncident.status !== 'CANCELLATION_REQUESTED' && <Button variant="outline" className="min-h-12 w-full" onClick={() => { setCancellationPin(''); setCancellationError(''); setModal('cancellation'); }}>Cancel Response</Button>}
+          <Button variant="ghost" className="min-h-12 w-full" onClick={() => setModal('status')}>Continue waiting</Button>
         </div>
       </AccessibleModal>
 

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { DemoProvider } from '@/features/demo/demo-context';
+import { EmergencyProvider } from '@/features/emergency/emergency-context';
 
 import './globals.css';
 
@@ -16,7 +17,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en">
       <body>
         <DemoProvider>
-          <AppShell>{children}</AppShell>
+          <EmergencyProvider>
+            <AppShell>{children}</AppShell>
+          </EmergencyProvider>
         </DemoProvider>
       </body>
     </html>

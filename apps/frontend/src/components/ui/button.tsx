@@ -5,13 +5,13 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-45 active:translate-y-px',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        primary: 'bg-slate-950 text-white shadow-sm hover:bg-slate-800',
-        emergency: 'bg-[#ef3f34] text-white shadow-[0_8px_28px_rgba(239,63,52,.22)] hover:bg-[#d9342b]',
-        outline: 'border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50',
+        primary: 'bg-[#003172] text-white hover:bg-[#00275b]',
+        emergency: 'bg-[#B91C1C] text-white hover:bg-[#991B1B]',
+        outline: 'bg-white text-slate-800 shadow-[0_5px_14px_rgba(15,23,42,0.12)] hover:bg-slate-50 hover:shadow-[0_8px_20px_rgba(15,23,42,0.16)]',
         subtle: 'bg-slate-100 text-slate-700 hover:bg-slate-200',
         ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',
         success: 'bg-emerald-600 text-white hover:bg-emerald-700',

@@ -65,7 +65,7 @@ export const createInitialState = (): EmergencyState => {
   ]);
 
   return {
-    version: 2,
+    version: 3,
     revision: 0,
     appliedActionIds: [],
     stations: seedStations,
@@ -84,13 +84,8 @@ export const createInitialState = (): EmergencyState => {
     offers: [],
     messages: [],
     audit: [],
-    profile: {
-      id: 'client-demo',
-      name: 'Naledi',
-      surname: 'Mokoena',
-      idNumber: '900101 5800 08 7',
-      phone: '072 555 0147',
-      nextOfKin: { name: 'Refilwe Mokoena', relationship: 'Sister', phone: '073 555 0191' },
-    },
+    profile: null,
+    profileSecurity: null,
+    registrationStatus: 'NOT_REGISTERED',
   };
 };

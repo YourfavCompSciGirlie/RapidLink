@@ -2,7 +2,6 @@ import { ArrowLeft, Clock3, History } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { useEmergency } from '@/features/emergency/emergency-context';
 import { employeeBusy, employeeDuty, sessionService } from '@/features/emergency/session-service';
@@ -47,7 +46,6 @@ export default function AttendancePage() {
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
       <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <header className="pb-6"><Link to="/supervisor" className="inline-flex min-h-11 items-center gap-2 font-bold text-[#003172]"><ArrowLeft className="h-4 w-4" /> Employee management</Link><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-[#003172]">Daily attendance</h1><p className="mt-2 text-base text-slate-700">Supervisors record attendance. Employees do not sign themselves on.</p></header>
         {notice && <div className="mt-5 border-l-4 border-[#003172] bg-blue-50 p-3 font-bold text-[#003172]" role="status">{notice}</div>}

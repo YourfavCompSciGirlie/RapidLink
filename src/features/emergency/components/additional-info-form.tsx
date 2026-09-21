@@ -40,6 +40,7 @@ export function AdditionalInfoForm({
   onSend,
   onSkip,
   acceptedNotice,
+  escalationNotice,
   sending,
   error,
 }: {
@@ -48,6 +49,7 @@ export function AdditionalInfoForm({
   onSend: () => void;
   onSkip: () => void;
   acceptedNotice?: string;
+  escalationNotice?: string;
   sending: boolean;
   error: string;
 }) {
@@ -127,6 +129,7 @@ export function AdditionalInfoForm({
   return (
     <form onSubmit={(event) => { event.preventDefault(); onSend(); }} className="space-y-5">
       {acceptedNotice && <div className="border-l-4 border-emerald-600 bg-emerald-50 p-3 text-sm font-bold text-emerald-900" role="status">{acceptedNotice}</div>}
+      {escalationNotice && <div className="border-l-4 border-[#003172] bg-blue-50 p-3 text-sm font-bold text-[#003172]" role="status">{escalationNotice}</div>}
       <div>
         <label htmlFor="what-happened" className="font-bold text-slate-950">What happened?</label>
         <textarea
@@ -192,7 +195,7 @@ export function AdditionalInfoForm({
         </Button>
         <Button type="button" variant="outline" className="min-h-12" onClick={onSkip}>Skip for now</Button>
       </div>
-      {draft.dirty && <p className="text-sm font-semibold text-amber-800">Draft saved locally. It is not sent until you select “Send additional information”.</p>}
+      {draft.dirty && <p className="text-sm font-semibold text-amber-800">Draft not sent yet. Select “Send additional information” when ready.</p>}
     </form>
   );
 }

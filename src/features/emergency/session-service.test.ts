@@ -1,17 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { GA_RANKUWA_COORDINATES } from './config';
 import { createInitialState } from './fixtures';
 import { applyEmergencyAction, createSession, sessionService } from './session-service';
-import type { EmergencyAction } from './types';
+import type { EmergencyAction, EmergencyState } from './types';
 
-const location = { latitude: -25.6042, longitude: 28.0053, accuracy: 35, capturedAt: new Date().toISOString(), source: 'browser' as const };
+const location = { ...GA_RANKUWA_COORDINATES, capturedAt: new Date().toISOString(), source: 'manual-area' as const };
 const apply = (state: ReturnType<typeof createInitialState>, event: EmergencyAction) => applyEmergencyAction(state, event);
+const registeredState = (): EmergencyState => {
+  const state = createInitialState();
+  const timestamp = new Date().toISOString();
+  return {
+    ...state,
+    registrationStatus: 'REGISTERED' as const,
+    profile: { id: 'client-test', name: 'Naledi', surname: 'Mokoena', email: 'naledi@example.test', southAfricanId: '9001015009087', phone: '0725550147', nextOfKin: { name: 'Refilwe Mokoena', phone: '0735550191' }, createdAt: timestamp, updatedAt: timestamp },
+    profileSecurity: { salt: 'dGVzdA==', derivedHash: 'dGVzdA==', iterations: 1, failedAttempts: 0 },
+  };
+};
 
 describe('emergency session reducer', () => {
   beforeEach(() => window.localStorage.clear());
 
   it('routes a service request to every matching active on-duty responder', () => {
-    let state = createInitialState();
+    let state = registeredState();
     state = apply(state, { id: 'create', type: 'create-incident', payload: { incidentId: 'incident-police', service: 'police', location } });
     state = apply(state, { id: 'submit', type: 'submit-incident', payload: { incidentId: 'incident-police' } });
     const offers = state.offers.filter((offer) => offer.incidentId === 'incident-police');
@@ -20,7 +31,7 @@ describe('emergency session reducer', () => {
   });
 
   it('routes SOS to police and ambulance responders', () => {
-    let state = createInitialState();
+    let state = registeredState();
     state = apply(state, { id: 'create-sos', type: 'create-incident', payload: { incidentId: 'incident-sos', service: 'sos', location } });
     state = apply(state, { id: 'submit-sos', type: 'submit-incident', payload: { incidentId: 'incident-sos' } });
     const services = state.offers.map((offer) => state.employees.find((employee) => employee.id === offer.employeeId)?.service);
@@ -29,7 +40,7 @@ describe('emergency session reducer', () => {
   });
 
   it.each(['police', 'ambulance', 'fire'] as const)('routes a Ga-Rankuwa %s request to local on-duty responders', (service) => {
-    let state = createInitialState();
+    let state = registeredState();
     const incidentId = `incident-garankuwa-${service}`;
     state = apply(state, { id: `create-${service}`, type: 'create-incident', payload: { incidentId, service, location } });
     state = apply(state, { id: `submit-${service}`, type: 'submit-incident', payload: { incidentId } });
@@ -43,14 +54,25 @@ describe('emergency session reducer', () => {
 
   it('applies an action id only once', () => {
     const event: EmergencyAction = { id: 'one-action', type: 'create-incident', payload: { incidentId: 'incident-one', service: 'fire', location } };
-    const once = apply(createInitialState(), event);
+    const once = apply(registeredState(), event);
     const twice = apply(once, event);
     expect(twice.incidents).toHaveLength(1);
     expect(twice.revision).toBe(once.revision);
   });
 
+  it('keeps the registered client identity on this device when room data resets', () => {
+    const registered = registeredState();
+    sessionService.saveProfile(registered.profile!, registered.profileSecurity!);
+
+    const reset = sessionService.reset();
+
+    expect(reset.registrationStatus).toBe('REGISTERED');
+    expect(reset.profile?.id).toBe('client-test');
+    expect(reset.incidents).toHaveLength(0);
+  });
+
   it('allows only the first responder to accept', () => {
-    let state = createInitialState();
+    let state = registeredState();
     state = apply(state, { id: 'create-race', type: 'create-incident', payload: { incidentId: 'incident-race', service: 'ambulance', location } });
     state = apply(state, { id: 'submit-race', type: 'submit-incident', payload: { incidentId: 'incident-race' } });
     const [first, second] = state.offers;
@@ -61,7 +83,7 @@ describe('emergency session reducer', () => {
   });
 
   it('preserves actions appended while synchronization is already running', async () => {
-    let remoteState = createInitialState();
+    let remoteState = registeredState();
     let version = 0;
     const synchronizedTypes: EmergencyAction['type'][] = [];
     const record = () => ({

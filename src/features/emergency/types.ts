@@ -7,7 +7,23 @@ export type IncidentProgress =
   | 'accepted'
   | 'en_route'
   | 'arrived'
+  | 'cancellation_requested'
+  | 'cancelled'
   | 'completed';
+
+export type IncidentStatus =
+  | 'CREATING'
+  | 'WAITING_FOR_RESPONDER'
+  | 'ACCEPTED'
+  | 'EN_ROUTE'
+  | 'ARRIVED'
+  | 'CANCELLATION_REQUESTED'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export type RegistrationStatus = 'NOT_REGISTERED' | 'SAVING' | 'REGISTERED' | 'SAVE_FAILED';
+export type EscalationStatus = 'INITIAL_STATION' | 'SEARCH_EXPANDED' | 'ALL_STATIONS_NOTIFIED' | 'STOPPED';
 
 export type DeliveryState = 'pending' | 'sent' | 'failed' | 'no_station' | 'no_responders' | 'everyone_declined';
 export type AttendanceChoice = 'present' | 'absent' | 'leave';
@@ -18,16 +34,27 @@ export interface CapturedLocation {
   longitude: number;
   accuracy: number;
   capturedAt: string;
-  source: 'browser';
+  source: 'browser' | 'manual-area';
 }
 
 export interface ClientProfile {
   id: string;
   name: string;
   surname: string;
-  idNumber?: string;
+  email: string;
+  southAfricanId: string;
   phone: string;
-  nextOfKin?: { name: string; relationship: string; phone: string };
+  nextOfKin: { name: string; phone: string; relationship?: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CancellationPinRecord {
+  salt: string;
+  derivedHash: string;
+  iterations: number;
+  failedAttempts: number;
+  lockedUntil?: string;
 }
 
 export interface IncidentAttachment {
@@ -57,14 +84,25 @@ export interface Incident {
   submittedAt?: string;
   deliveryState: DeliveryState;
   progress: IncidentProgress;
+  status: IncidentStatus;
   location: CapturedLocation | null;
   locationNote?: string;
   stationId?: string;
+  notifiedStationIds: string[];
+  searchStage: number;
+  escalationStatus: EscalationStatus;
+  nextEscalationAt?: string;
   assignedEmployeeId?: string;
   acceptedAt?: string;
   information: IncidentInformation[];
   informationError?: string;
   declinedEmployeeIds: string[];
+  cancellationRequestedAt?: string;
+  progressBeforeCancellation?: IncidentProgress;
+  cancellationResponse?: 'acknowledged' | 'continued';
+  completionRequestedAt?: string;
+  completionRequestStatus?: 'pending' | 'declined' | 'confirmed';
+  completedAt?: string;
 }
 
 export interface Station {
@@ -125,7 +163,7 @@ export interface AuditEvent {
 }
 
 export interface EmergencyState {
-  version: 2;
+  version: 3;
   revision: number;
   appliedActionIds: string[];
   stations: Station[];
@@ -135,7 +173,9 @@ export interface EmergencyState {
   offers: IncidentOffer[];
   messages: ResponderMessage[];
   audit: AuditEvent[];
-  profile: ClientProfile;
+  profile: ClientProfile | null;
+  profileSecurity: CancellationPinRecord | null;
+  registrationStatus: RegistrationStatus;
 }
 
 export type SyncStatus = 'offline' | 'saved' | 'syncing' | 'synced';
@@ -152,6 +192,16 @@ export type EmergencyAction =
   | { id: string; type: 'decline-offer'; payload: { offerId: string } }
   | { id: string; type: 'accept-offer'; payload: { offerId: string } }
   | { id: string; type: 'update-progress'; payload: { incidentId: string; employeeId: string; progress: IncidentProgress } }
+  | { id: string; type: 'save-profile'; payload: { profile: ClientProfile; security: CancellationPinRecord } }
+  | { id: string; type: 'update-profile'; payload: { profile: ClientProfile } }
+  | { id: string; type: 'change-pin'; payload: { security: CancellationPinRecord } }
+  | { id: string; type: 'record-pin-failure'; payload: { lockedUntil?: string } }
+  | { id: string; type: 'clear-pin-failures'; payload: Record<string, never> }
+  | { id: string; type: 'cancel-incident'; payload: { incidentId: string } }
+  | { id: string; type: 'respond-cancellation'; payload: { incidentId: string; employeeId: string; acknowledge: boolean } }
+  | { id: string; type: 'escalate-incident'; payload: { incidentId: string; expectedDeadline: string } }
+  | { id: string; type: 'request-completion'; payload: { incidentId: string; employeeId: string } }
+  | { id: string; type: 'confirm-help-received'; payload: { incidentId: string; received: boolean } }
   | { id: string; type: 'reset-session'; payload: Record<string, never> };
 
 export interface SessionRecord {

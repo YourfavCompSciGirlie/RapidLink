@@ -23,3 +23,7 @@ export const DEMO_COORDINATES = {
   longitude: 28.0053,
   accuracy: 35,
 } as const;
+
+export const ESCALATION_INTERVAL_MS = 30_000;
+export const PIN_LOCKOUT_MS = 30_000;
+export const PIN_MAX_ATTEMPTS = 5;

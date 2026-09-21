@@ -14,21 +14,36 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173), create a room, and use the Client, Responder and Supervisor cards. Separate tabs in the same browser continue to work if the network is disconnected.
+Open [http://localhost:5173](http://localhost:5173) to enter the client flow. Use `/session` only when you need to create or join a shared room. Separate tabs in the same browser continue to work if the network is disconnected.
+
+## Frontend routes
+
+- `http://localhost:5173/` — redirect to client registration or the emergency page
+- `http://localhost:5173/session` — create or join a shared room
+- `http://localhost:5173/register` — first-time client registration
+- `http://localhost:5173/client` — client emergency request and live status
+- `http://localhost:5173/client/profile` — edit client details or change the cancellation PIN
+- `http://localhost:5173/supervisor` — station employee management
+- `http://localhost:5173/supervisor/attendance` — daily attendance and shifts
+- `http://localhost:5173/responder` — responder entry point
+- `http://localhost:5173/responder/offers/{offerId}` — unique responder offer
+- `http://localhost:5173/messages` — responder message inbox
+
+Compatibility routes `/citizen`, `/dispatcher`, `/supervisor/employees`, and `/demo/sms` redirect to their current equivalents.
 
 The plain Vite development server uses the local-only fallback because it does not run Vercel Functions. Use `vercel dev` when you need to exercise the Supabase-backed API locally, or test cross-device synchronization on the deployed preview.
 
-## Demo flow
+## Response flow
 
-1. Create a room on `/`.
-2. Open the Client interface and enable location or use the Ga-Rankuwa demo location.
-3. Press SOS or choose a service. The request is transmitted after the five-second undo window.
-4. Open Responder Messages on another tab or scan its QR code on another device.
-5. Open an offer and accept it.
-6. Update the response through En route, Arrived and Completed.
-7. Watch the client receive each change.
+1. Open `/` and register the client once. Use `/session` first only when a shared room is needed. The browser stores only a salted PBKDF2-derived cancellation PIN hash.
+2. Open the Client interface and enable location or use the Ga-Rankuwa preset.
+3. Press SOS or choose a service. The request is transmitted immediately to the closest appropriate station.
+4. If nobody accepts after 30 seconds, the persisted scheduler notifies the next closest appropriate station. Earlier offers remain open and the first valid acceptance wins.
+5. Open Responder Messages on another tab or scan its QR code on another device, then accept an offer.
+6. Update the response through En route and Arrived. The responder requests closure, but the incident closes only after the client confirms that help was received.
+7. To cancel, the client enters the six-digit cancellation PIN. A waiting request is cancelled immediately; an accepted request remains active until the assigned responder acknowledges the cancellation.
 
-The Supervisor interface controls employee records and attendance. Reset demonstration returns the room to its initial seeded state.
+The Supervisor interface controls employee records and attendance. Reset room data returns the room to its initial seeded state.
 
 ## Cross-device rooms with Supabase
 
@@ -48,6 +63,14 @@ The service-role key must remain server-only. All remote writes pass through Ver
 The Vite PWA build generates the web manifest and service worker, precaches the application shell and hashed assets, and retains the designed offline route. Open the deployed HTTPS site and choose Install when prompted. Actions are applied locally and queued in order; they synchronize when connectivity returns.
 
 Cross-device synchronization requires connectivity. Offline demonstrations work across tabs on the same installed device.
+
+## Frontend-only boundaries
+
+- Profile registration is remembered only by the same browser/device store. Clearing browser data or using another device starts registration again unless a configured room is synchronized.
+- PIN hashing and verification are browser simulations, not a production security boundary. A real backend must verify PINs, enforce lockouts and provide recovery only after verified email or phone ownership.
+- The 30-second station expansion is recovered from persisted deadlines when the application opens, regains focus or remains open. Production requires an authoritative backend job that runs even when every browser is closed.
+- A production backend must authoritatively accept one responder, invalidate competing offers, enforce cancellations and send real SMS messages.
+- Client route guards simulate navigation only and are not production authentication or authorization.
 
 ## Deployment
 

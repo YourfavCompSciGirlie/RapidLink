@@ -1,36 +1,29 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 import { EmergencyProvider } from '@/features/emergency/emergency-context';
-import { readState } from '@/features/emergency/session-service';
+import { readState, sessionService } from '@/features/emergency/session-service';
 
 import ClientPage from './client';
 
-describe('client activation safety window', () => {
+describe('client emergency activation', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    const timestamp = new Date().toISOString();
+    sessionService.saveProfile(
+      { id: 'client-test', name: 'Naledi', surname: 'Mokoena', email: 'naledi@example.test', southAfricanId: '9001015009087', phone: '0725550147', nextOfKin: { name: 'Refilwe Mokoena', phone: '0735550191' }, createdAt: timestamp, updatedAt: timestamp },
+      { salt: 'dGVzdA==', derivedHash: 'dGVzdA==', iterations: 1, failedAttempts: 0 },
+    );
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: vi.fn() } });
   });
 
-  it('does not create an incident before the countdown and supports undo', () => {
-    render(<EmergencyProvider><ClientPage /></EmergencyProvider>);
+  it('creates and submits an incident immediately', async () => {
+    render(<MemoryRouter><EmergencyProvider><ClientPage /></EmergencyProvider></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Use Ga-Rankuwa' }));
     fireEvent.click(screen.getByRole('button', { name: /^Police$/ }));
-    expect(screen.getByRole('heading', { name: 'Sending emergency request' })).toBeInTheDocument();
-    expect(readState().incidents).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: /Undo false alert/i }));
-    expect(screen.queryByRole('heading', { name: 'Sending emergency request' })).not.toBeInTheDocument();
-    expect(readState().incidents).toHaveLength(0);
-  });
-
-  it('transmits when the five-second countdown completes', async () => {
-    vi.useFakeTimers();
-    render(<EmergencyProvider><ClientPage /></EmergencyProvider>);
-    fireEvent.click(screen.getByRole('button', { name: /^Ambulance$/ }));
-    for (let second = 0; second < 6; second += 1) {
-      await act(async () => { vi.advanceTimersByTime(1_000); });
-    }
-    expect(readState().incidents).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
-    vi.useRealTimers();
+    expect(readState().incidents).toHaveLength(1);
+    await waitFor(() => expect(readState().offers.length).toBeGreaterThan(0));
   });
 });

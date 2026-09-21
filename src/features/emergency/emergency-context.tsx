@@ -29,7 +29,7 @@ export function EmergencyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const code = getActiveSessionCode();
     setSessionCode(code);
-    setState(readState());
+    setState(sessionService.recoverEscalations());
     setOnline(navigator.onLine);
     setSyncStatus(getSyncStatus());
     setReady(true);
@@ -44,6 +44,7 @@ export function EmergencyProvider({ children }: { children: ReactNode }) {
         setSyncStatus('syncing');
         await flushPending();
         setState(await syncFromRemote());
+        setState(sessionService.recoverEscalations());
       } else setState(readState());
       setSyncStatus(getSyncStatus());
     };
@@ -51,10 +52,12 @@ export function EmergencyProvider({ children }: { children: ReactNode }) {
     window.addEventListener('offline', sync);
     window.addEventListener('focus', sync);
     const poll = window.setInterval(() => { if (navigator.onLine && getActiveSessionCode()) void sync(); }, 2500);
+    const escalationCheck = window.setInterval(() => setState(sessionService.recoverEscalations()), 1000);
     if (code && navigator.onLine) void sync();
     return () => {
       unsubscribe();
       window.clearInterval(poll);
+      window.clearInterval(escalationCheck);
       window.removeEventListener('online', sync);
       window.removeEventListener('offline', sync);
       window.removeEventListener('focus', sync);

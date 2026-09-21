@@ -17,6 +17,8 @@ const statusCopy = (incident: Incident, employee?: Employee) => {
   if (incident.progress === 'accepted') return `${employee?.name ?? 'A responder'} accepted your request.`;
   if (incident.progress === 'en_route') return 'Your responder is en route.';
   if (incident.progress === 'arrived') return 'Your responder has arrived.';
+  if (incident.progress === 'cancellation_requested') return 'Cancellation sent to your responder.';
+  if (incident.progress === 'cancelled') return 'Emergency request cancelled.';
   return 'This incident is completed.';
 };
 
@@ -53,8 +55,13 @@ export function ActiveIncidentPanel({
         <div className="flex gap-2"><Siren className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Service</dt><dd className="font-bold text-slate-950">{serviceLabel(incident.service)}</dd></div></div>
         <div className="flex gap-2"><MapPin className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Station</dt><dd className="font-bold text-slate-950">{station?.name ?? 'Awaiting usable location'}</dd></div></div>
         <div className="flex gap-2"><Clock3 className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Reported</dt><dd className="font-bold text-slate-950">{new Date(incident.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</dd></div></div>
-        <div className="flex gap-2"><Navigation className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Additional information</dt><dd className="font-bold text-slate-950">{incident.information.length ? 'Sent' : incident.informationError ? 'Saved locally, unsent' : 'Not sent'}</dd></div></div>
+        <div className="flex gap-2"><Navigation className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Additional information</dt><dd className="font-bold text-slate-950">{incident.information.length ? 'Sent' : incident.informationError ? 'Pending delivery' : 'Not sent'}</dd></div></div>
+        <div className="flex gap-2"><Radio className="h-4 w-4 shrink-0 text-slate-500" /><div><dt className="font-semibold text-slate-500">Search coverage</dt><dd className="font-bold text-slate-950">Stage {incident.searchStage} · {incident.notifiedStationIds.length} station{incident.notifiedStationIds.length === 1 ? '' : 's'} notified</dd></div></div>
       </dl>
+
+      {incident.searchStage > 1 && incident.status === 'WAITING_FOR_RESPONDER' && <div className="mt-4 border-l-4 border-[#003172] bg-blue-50 p-4 text-[#003172]" role="status"><p className="font-extrabold">Search expanded</p><p className="mt-1 text-sm font-semibold">Nearby appropriate stations have also been notified. Your request remains active.</p></div>}
+      {incident.escalationStatus === 'ALL_STATIONS_NOTIFIED' && incident.status === 'WAITING_FOR_RESPONDER' && <div className="mt-4 border-l-4 border-amber-600 bg-amber-50 p-4 text-amber-950" role="status"><p className="font-extrabold">No responder has accepted yet</p><p className="mt-1 text-sm font-semibold">All available nearby stations have been notified. Your request remains active.</p></div>}
+      {incident.cancellationResponse === 'continued' && <div className="mt-4 border-l-4 border-amber-600 bg-amber-50 p-4 text-amber-950" role="status"><p className="font-extrabold">Response continuing</p><p className="mt-1 text-sm font-semibold">The responder is continuing because assistance is still required or they are already on scene.</p></div>}
 
       {incident.informationError && <p className="mt-4 text-sm font-semibold text-red-700" role="alert">{incident.informationError} Your original request remains active.</p>}
       <div className="mt-5 grid gap-2 sm:grid-cols-2">

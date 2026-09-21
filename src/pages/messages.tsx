@@ -2,7 +2,6 @@ import { ExternalLink, Inbox, MessageSquareText } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { ServiceNotice } from '@/components/service-notice';
 import { Button } from '@/components/ui/button';
 import { serviceLabel } from '@/features/emergency/config';
 import { useEmergency } from '@/features/emergency/emergency-context';
@@ -17,7 +16,6 @@ export default function ResponderMessagesPage() {
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-white">
-      <ServiceNotice />
       <div className="mx-auto max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
         <header className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -51,7 +49,7 @@ export default function ResponderMessagesPage() {
               </article>
             );
           })}
-          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable your location or choose the Ga-Rankuwa demo location, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link to="/client">Open client interface</Link></Button></div>}
+          {!messages.length && <div className="elevated-surface bg-white p-6 text-center sm:rounded-2xl sm:p-8"><Inbox className="mx-auto h-10 w-10 text-slate-400" /><h2 className="mt-3 text-lg font-extrabold text-slate-950">No responder messages</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Use the client interface, enable your location or choose Ga-Rankuwa, and start a request. Matching on-duty employees will appear here.</p><Button asChild className="mt-4"><Link to="/client">Open client interface</Link></Button></div>}
         </div>
       </div>
     </main>

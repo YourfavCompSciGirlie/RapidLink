@@ -3,7 +3,7 @@
 import { LocateFixed, MapPin, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { DEMO_COORDINATES } from '../config';
+import { GA_RANKUWA_COORDINATES } from '../config';
 import type { CapturedLocation } from '../types';
 
 export function getBrowserLocation(): Promise<CapturedLocation> {
@@ -64,8 +64,8 @@ export function LocationStatus({
           {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
           {loading ? 'Finding location…' : location ? 'Refresh location' : 'Enable location'}
         </Button>
-        <Button type="button" variant="ghost" className="min-h-12 text-[#B91C1C] hover:bg-red-50 hover:text-[#991B1B]" onClick={() => onPreset({ ...DEMO_COORDINATES, capturedAt: new Date().toISOString(), source: 'demo' })}>
-          <MapPin className="h-4 w-4" /> Use Ga-Rankuwa demo location
+        <Button type="button" variant="ghost" className="min-h-12 text-[#003172] hover:bg-blue-50 hover:text-[#002454]" onClick={() => onPreset({ ...GA_RANKUWA_COORDINATES, capturedAt: new Date().toISOString(), source: 'manual-area' })}>
+          <MapPin className="h-4 w-4" /> Select Ga-Rankuwa area
         </Button>
       </div>
     </section>

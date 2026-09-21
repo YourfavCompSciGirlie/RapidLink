@@ -1,4 +1,5 @@
 import { createInitialState } from './fixtures.js';
+import { ESCALATION_INTERVAL_MS, PIN_MAX_ATTEMPTS } from './config.js';
 import type {
   AcceptResult,
   AttendanceEntry,
@@ -9,6 +10,8 @@ import type {
   Incident,
   IncidentAttachment,
   IncidentProgress,
+  ClientProfile,
+  CancellationPinRecord,
   ServiceType,
   SessionRecord,
   SyncStatus,
@@ -34,12 +37,27 @@ export const isAttendanceActive = (entry: AttendanceEntry | undefined, at = Date
   Boolean(entry && entry.choice === 'present' && !entry.endedAt && Date.parse(entry.shiftStart) <= at && Date.parse(entry.shiftEnd) > at);
 
 export const employeeDuty = (state: EmergencyState, employeeId: string) => {
-  const entries = state.attendance.filter((item) => item.employeeId === employeeId).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  return isAttendanceActive(entries[0]);
+  return state.attendance
+    .filter((item) => item.employeeId === employeeId)
+    .some((entry) => isAttendanceActive(entry));
 };
 
 export const employeeBusy = (state: EmergencyState, employeeId: string, excludeIncidentId?: string) =>
-  state.incidents.some((incident) => incident.id !== excludeIncidentId && incident.assignedEmployeeId === employeeId && incident.progress !== 'completed');
+  state.incidents.some((incident) => incident.id !== excludeIncidentId && incident.assignedEmployeeId === employeeId && !['completed', 'cancelled'].includes(incident.progress));
+
+const stationSupportsIncident = (station: EmergencyState['stations'][number], incident: Incident) =>
+  incident.service === 'sos'
+    ? station.services.includes('police') && station.services.includes('ambulance')
+    : station.services.includes(incident.service);
+
+const eligibleEmployeesForStation = (state: EmergencyState, incident: Incident, stationId: string) =>
+  state.employees.filter((employee) =>
+    employee.stationId === stationId &&
+    (employee.service === incident.service || (incident.service === 'sos' && (employee.service === 'police' || employee.service === 'ambulance'))) &&
+    employee.active &&
+    !incident.declinedEmployeeIds.includes(employee.id) &&
+    employeeDuty(state, employee.id) &&
+    !employeeBusy(state, employee.id, incident.id));
 
 const distanceKm = (location: CapturedLocation, latitude: number, longitude: number) => {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -50,32 +68,91 @@ const distanceKm = (location: CapturedLocation, latitude: number, longitude: num
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+const orderedStations = (state: EmergencyState, incident: Incident) => state.stations
+  .filter((station) => stationSupportsIncident(station, incident))
+  .map((station) => ({ station, distance: incident.location ? distanceKm(incident.location, station.latitude, station.longitude) : Number.POSITIVE_INFINITY }))
+  .sort((a, b) => a.distance - b.distance)
+  .map(({ station }) => station);
+
+const offersForStation = (state: EmergencyState, incident: Incident, stationId: string) => {
+  const existingEmployeeIds = new Set(state.offers.filter((offer) => offer.incidentId === incident.id).map((offer) => offer.employeeId));
+  const createdAt = now();
+  const offers = eligibleEmployeesForStation(state, incident, stationId)
+    .filter((employee) => !existingEmployeeIds.has(employee.id))
+    .map((employee) => ({ id: generatedId('offer'), incidentId: incident.id, employeeId: employee.id, status: 'open' as const, createdAt }));
+  return {
+    offers,
+    messages: offers.map((offer) => ({ id: generatedId('message'), offerId: offer.id, incidentId: incident.id, employeeId: offer.employeeId, createdAt })),
+  };
+};
+
 const routeIncident = (state: EmergencyState, incident: Incident): EmergencyState => {
   if (!incident.location) {
-    return { ...state, incidents: state.incidents.map((item) => item.id === incident.id ? { ...item, progress: 'waiting' as const, deliveryState: 'pending' as const, submittedAt: now() } : item) };
+    return { ...state, incidents: state.incidents.map((item) => item.id === incident.id ? { ...item, status: 'WAITING_FOR_RESPONDER' as const, progress: 'waiting' as const, deliveryState: 'pending' as const, submittedAt: now() } : item) };
   }
-  const station = state.stations
-    .filter((item) => incident.service === 'sos' ? item.services.includes('police') && item.services.includes('ambulance') : item.services.includes(incident.service))
-    .map((item) => ({ item, distance: distanceKm(incident.location!, item.latitude, item.longitude) }))
-    .sort((a, b) => a.distance - b.distance)[0]?.item;
+  const station = orderedStations(state, incident)[0];
   if (!station) {
-    return { ...state, incidents: state.incidents.map((item) => item.id === incident.id ? { ...item, progress: 'waiting' as const, deliveryState: 'no_station' as const } : item) };
+    return { ...state, incidents: state.incidents.map((item) => item.id === incident.id ? { ...item, status: 'FAILED' as const, progress: 'submission_failed' as const, deliveryState: 'no_station' as const, escalationStatus: 'STOPPED' as const } : item) };
   }
-  const routed: Incident = { ...incident, stationId: station.id, deliveryState: 'sent', progress: 'waiting', submittedAt: now() };
-  const employees = state.employees.filter((employee) =>
-    employee.stationId === station.id &&
-    (employee.service === routed.service || (routed.service === 'sos' && (employee.service === 'police' || employee.service === 'ambulance'))) &&
-    employee.active && employeeDuty(state, employee.id) && !employeeBusy(state, employee.id));
-  if (!employees.length) {
-    return { ...state, incidents: state.incidents.map((item) => item.id === incident.id ? { ...routed, deliveryState: 'no_responders' } : item) };
-  }
-  const createdAt = now();
-  const offers = employees.map((employee) => ({ id: generatedId('offer'), incidentId: incident.id, employeeId: employee.id, status: 'open' as const, createdAt }));
+  const submittedAt = now();
+  const routed: Incident = {
+    ...incident,
+    stationId: station.id,
+    notifiedStationIds: [station.id],
+    searchStage: 1,
+    escalationStatus: 'INITIAL_STATION',
+    nextEscalationAt: new Date(Date.parse(submittedAt) + ESCALATION_INTERVAL_MS).toISOString(),
+    deliveryState: 'sent',
+    status: 'WAITING_FOR_RESPONDER',
+    progress: 'waiting',
+    submittedAt,
+  };
+  const created = offersForStation(state, routed, station.id);
+  const deliveryState = created.offers.length ? 'sent' : 'no_responders';
   return {
     ...state,
-    incidents: state.incidents.map((item) => item.id === incident.id ? routed : item),
-    offers: [...state.offers, ...offers],
-    messages: [...state.messages, ...offers.map((offer) => ({ id: generatedId('message'), offerId: offer.id, incidentId: incident.id, employeeId: offer.employeeId, createdAt }))],
+    incidents: state.incidents.map((item) => item.id === incident.id ? { ...routed, deliveryState } : item),
+    offers: [...state.offers, ...created.offers],
+    messages: [...state.messages, ...created.messages],
+  };
+};
+
+const escalateIncident = (state: EmergencyState, incident: Incident, expectedDeadline: string): EmergencyState => {
+  if (
+    incident.status !== 'WAITING_FOR_RESPONDER' ||
+    incident.assignedEmployeeId ||
+    !incident.nextEscalationAt ||
+    incident.nextEscalationAt !== expectedDeadline ||
+    Date.parse(expectedDeadline) > Date.now()
+  ) return state;
+  const station = orderedStations(state, incident).find((candidate) => !incident.notifiedStationIds.includes(candidate.id));
+  if (!station) {
+    return {
+      ...state,
+      incidents: state.incidents.map((item) => item.id === incident.id ? { ...item, escalationStatus: 'ALL_STATIONS_NOTIFIED', nextEscalationAt: undefined } : item),
+    };
+  }
+  const expanded: Incident = {
+    ...incident,
+    notifiedStationIds: [...incident.notifiedStationIds, station.id],
+    searchStage: incident.searchStage + 1,
+    escalationStatus: 'SEARCH_EXPANDED',
+    nextEscalationAt: new Date(Date.parse(expectedDeadline) + ESCALATION_INTERVAL_MS).toISOString(),
+  };
+  const created = offersForStation(state, expanded, station.id);
+  const hasAnother = orderedStations(state, expanded).some((candidate) => !expanded.notifiedStationIds.includes(candidate.id));
+  if (!hasAnother) {
+    expanded.escalationStatus = 'ALL_STATIONS_NOTIFIED';
+    expanded.nextEscalationAt = undefined;
+  }
+  const hasOpenOffers = state.offers.some((offer) => offer.incidentId === incident.id && offer.status === 'open') || created.offers.length > 0;
+  expanded.deliveryState = hasOpenOffers ? 'sent' : 'no_responders';
+  return {
+    ...state,
+    incidents: state.incidents.map((item) => item.id === incident.id ? expanded : item),
+    offers: [...state.offers, ...created.offers],
+    messages: [...state.messages, ...created.messages],
+    audit: [...state.audit, { id: generatedId('audit'), type: 'search-expanded', message: `${incident.reference} expanded to ${station.name}`, createdAt: now() }],
   };
 };
 
@@ -83,15 +160,27 @@ export function applyEmergencyAction(current: EmergencyState, event: EmergencyAc
   if (current.appliedActionIds.includes(event.id)) return current;
   const remember = (state: EmergencyState): EmergencyState => ({ ...state, revision: current.revision + 1, appliedActionIds: [...current.appliedActionIds.slice(-99), event.id] });
   if (event.type === 'reset-session') return remember(createInitialState());
+  if (event.type === 'save-profile') return remember({ ...current, profile: event.payload.profile, profileSecurity: event.payload.security, registrationStatus: 'REGISTERED' });
+  if (event.type === 'update-profile') return remember({ ...current, profile: event.payload.profile, registrationStatus: 'REGISTERED' });
+  if (event.type === 'change-pin') return remember({ ...current, profileSecurity: event.payload.security });
+  if (event.type === 'record-pin-failure') {
+    if (!current.profileSecurity) return remember(current);
+    const failedAttempts = Math.min(PIN_MAX_ATTEMPTS, current.profileSecurity.failedAttempts + 1);
+    return remember({ ...current, profileSecurity: { ...current.profileSecurity, failedAttempts, lockedUntil: event.payload.lockedUntil } });
+  }
+  if (event.type === 'clear-pin-failures') {
+    if (!current.profileSecurity) return remember(current);
+    return remember({ ...current, profileSecurity: { ...current.profileSecurity, failedAttempts: 0, lockedUntil: undefined } });
+  }
   if (event.type === 'create-incident') {
-    if (current.incidents.some((incident) => incident.clientId === current.profile.id && incident.progress !== 'completed')) return remember(current);
+    if (!current.profile || current.incidents.some((incident) => incident.clientId === current.profile?.id && !['completed', 'cancelled'].includes(incident.progress))) return remember(current);
     const incident: Incident = {
       id: event.payload.incidentId,
       reference: `RL-${event.payload.incidentId.slice(-6).toUpperCase()}`,
       clientId: current.profile.id,
       service: event.payload.service,
-      createdAt: now(), deliveryState: 'pending', progress: 'submitting', location: event.payload.location,
-      information: [], declinedEmployeeIds: [],
+      createdAt: now(), deliveryState: 'pending', progress: 'submitting', status: 'CREATING', location: event.payload.location,
+      information: [], declinedEmployeeIds: [], notifiedStationIds: [], searchStage: 0, escalationStatus: 'INITIAL_STATION',
     };
     return remember({ ...current, incidents: [...current.incidents, incident], audit: [...current.audit, { id: generatedId('audit'), type: 'incident-created', message: `${incident.reference} created`, createdAt: now() }] });
   }
@@ -112,7 +201,20 @@ export function applyEmergencyAction(current: EmergencyState, event: EmergencyAc
     const existing = current.attendance.find((item) => item.employeeId === event.payload.employeeId && item.date === event.payload.date);
     const updatedAt = now();
     const entry: AttendanceEntry = { id: existing?.id ?? generatedId('attendance'), ...event.payload, endedAt: event.payload.choice === 'present' ? undefined : updatedAt, updatedAt, updatedBy: 'Supervisor N. Selemela' };
-    return remember({ ...current, attendance: [...current.attendance.filter((item) => item.id !== entry.id), entry] });
+    let updated: EmergencyState = { ...current, attendance: [...current.attendance.filter((item) => item.id !== entry.id), entry] };
+    for (const incident of updated.incidents.filter((item) => item.status === 'WAITING_FOR_RESPONDER' && !item.assignedEmployeeId)) {
+      for (const stationId of incident.notifiedStationIds) {
+        const created = offersForStation(updated, incident, stationId);
+        if (!created.offers.length) continue;
+        updated = {
+          ...updated,
+          incidents: updated.incidents.map((item) => item.id === incident.id ? { ...item, deliveryState: 'sent' } : item),
+          offers: [...updated.offers, ...created.offers],
+          messages: [...updated.messages, ...created.messages],
+        };
+      }
+    }
+    return remember(updated);
   }
   if (event.type === 'end-shift') return remember({ ...current, attendance: current.attendance.map((entry) => entry.employeeId === event.payload.employeeId && isAttendanceActive(entry) ? { ...entry, endedAt: now(), updatedAt: now() } : entry) });
   if (event.type === 'add-employee') return remember({ ...current, employees: [...current.employees, { ...event.payload.employee, id: generatedId('employee') }] });
@@ -129,16 +231,68 @@ export function applyEmergencyAction(current: EmergencyState, event: EmergencyAc
     const offer = current.offers.find((item) => item.id === event.payload.offerId);
     const incident = current.incidents.find((item) => item.id === offer?.incidentId);
     const employee = current.employees.find((item) => item.id === offer?.employeeId);
-    if (!offer || !incident || !employee || incident.assignedEmployeeId || incident.progress === 'completed' || offer.status !== 'open' || !employee.active || !employeeDuty(current, employee.id) || employeeBusy(current, employee.id, incident.id)) return remember(current);
+    if (!offer || !incident || !employee || incident.assignedEmployeeId || incident.status !== 'WAITING_FOR_RESPONDER' || offer.status !== 'open' || !employee.active || !employeeDuty(current, employee.id) || employeeBusy(current, employee.id, incident.id)) return remember(current);
     const acceptedAt = now();
     return remember({
       ...current,
-      incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, assignedEmployeeId: employee.id, acceptedAt, progress: 'accepted' } : item),
+      incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, assignedEmployeeId: employee.id, acceptedAt, progress: 'accepted', status: 'ACCEPTED', escalationStatus: 'STOPPED', nextEscalationAt: undefined } : item),
       offers: current.offers.map((item) => item.incidentId !== incident.id ? item : item.id === offer.id ? { ...item, status: 'accepted', respondedAt: acceptedAt } : { ...item, status: 'closed' }),
       audit: [...current.audit, { id: generatedId('audit'), type: 'accepted', message: `${employee.employeeNumber} accepted ${incident.reference}`, createdAt: acceptedAt }],
     });
   }
-  if (event.type === 'update-progress') return remember({ ...current, incidents: current.incidents.map((incident) => incident.id === event.payload.incidentId && incident.assignedEmployeeId === event.payload.employeeId ? { ...incident, progress: event.payload.progress } : incident) });
+  if (event.type === 'update-progress') {
+    const statusByProgress = { accepted: 'ACCEPTED', en_route: 'EN_ROUTE', arrived: 'ARRIVED' } as const;
+    if (!['accepted', 'en_route', 'arrived'].includes(event.payload.progress)) return remember(current);
+    return remember({ ...current, incidents: current.incidents.map((incident) => incident.id === event.payload.incidentId && incident.assignedEmployeeId === event.payload.employeeId && !['CANCELLED', 'COMPLETED'].includes(incident.status) ? { ...incident, progress: event.payload.progress, status: statusByProgress[event.payload.progress as keyof typeof statusByProgress] } : incident) });
+  }
+  if (event.type === 'escalate-incident') {
+    const incident = current.incidents.find((item) => item.id === event.payload.incidentId);
+    return remember(incident ? escalateIncident(current, incident, event.payload.expectedDeadline) : current);
+  }
+  if (event.type === 'cancel-incident') {
+    const incident = current.incidents.find((item) => item.id === event.payload.incidentId);
+    if (!incident || ['CANCELLED', 'COMPLETED'].includes(incident.status)) return remember(current);
+    if (incident.status === 'WAITING_FOR_RESPONDER' || incident.status === 'CREATING' || incident.status === 'FAILED') {
+      return remember({
+        ...current,
+        incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, status: 'CANCELLED', progress: 'cancelled', escalationStatus: 'STOPPED', nextEscalationAt: undefined } : item),
+        offers: current.offers.map((offer) => offer.incidentId === incident.id && offer.status === 'open' ? { ...offer, status: 'closed' } : offer),
+        audit: [...current.audit, { id: generatedId('audit'), type: 'cancelled', message: `${incident.reference} cancelled by client`, createdAt: now() }],
+      });
+    }
+    return remember({
+      ...current,
+      incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, status: 'CANCELLATION_REQUESTED', progressBeforeCancellation: item.progress, progress: 'cancellation_requested', cancellationRequestedAt: now(), cancellationResponse: undefined, completionRequestStatus: undefined, completionRequestedAt: undefined, escalationStatus: 'STOPPED', nextEscalationAt: undefined } : item),
+      offers: current.offers.map((offer) => offer.incidentId === incident.id && offer.status === 'open' ? { ...offer, status: 'closed' } : offer),
+    });
+  }
+  if (event.type === 'respond-cancellation') {
+    const incident = current.incidents.find((item) => item.id === event.payload.incidentId);
+    if (!incident || incident.assignedEmployeeId !== event.payload.employeeId || incident.status !== 'CANCELLATION_REQUESTED') return remember(current);
+    if (event.payload.acknowledge) {
+      return remember({ ...current, incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, status: 'CANCELLED', progress: 'cancelled', cancellationResponse: 'acknowledged' } : item) });
+    }
+    const restored = incident.progressBeforeCancellation && !['completed', 'cancelled', 'cancellation_requested'].includes(incident.progressBeforeCancellation) ? incident.progressBeforeCancellation : 'arrived';
+    const restoredStatus = restored === 'accepted' ? 'ACCEPTED' : restored === 'en_route' ? 'EN_ROUTE' : 'ARRIVED';
+    return remember({ ...current, incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, status: restoredStatus, progress: restored, cancellationResponse: 'continued', cancellationRequestedAt: undefined, progressBeforeCancellation: undefined } : item) });
+  }
+  if (event.type === 'request-completion') {
+    const incident = current.incidents.find((item) => item.id === event.payload.incidentId);
+    if (!incident || incident.assignedEmployeeId !== event.payload.employeeId || incident.status !== 'ARRIVED') return remember(current);
+    return remember({ ...current, incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, completionRequestedAt: now(), completionRequestStatus: 'pending' } : item) });
+  }
+  if (event.type === 'confirm-help-received') {
+    const incident = current.incidents.find((item) => item.id === event.payload.incidentId);
+    if (!incident || incident.completionRequestStatus !== 'pending') return remember(current);
+    if (!event.payload.received) {
+      return remember({ ...current, incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, completionRequestStatus: 'declined' } : item) });
+    }
+    return remember({
+      ...current,
+      incidents: current.incidents.map((item) => item.id === incident.id ? { ...item, status: 'COMPLETED', progress: 'completed', completionRequestStatus: 'confirmed', completedAt: now() } : item),
+      offers: current.offers.map((offer) => offer.incidentId === incident.id && offer.status === 'open' ? { ...offer, status: 'closed' } : offer),
+    });
+  }
   return remember(current);
 }
 
@@ -148,10 +302,42 @@ const readQueue = (code: string): EmergencyAction[] => {
 
 const writeQueue = (code: string, events: EmergencyAction[]) => storage()?.setItem(queueKey(code), JSON.stringify(events));
 
+const statusFromProgress = (progress: IncidentProgress): Incident['status'] => {
+  if (progress === 'submitting') return 'CREATING';
+  if (progress === 'submission_failed') return 'FAILED';
+  if (progress === 'waiting') return 'WAITING_FOR_RESPONDER';
+  if (progress === 'accepted') return 'ACCEPTED';
+  if (progress === 'en_route') return 'EN_ROUTE';
+  if (progress === 'arrived') return 'ARRIVED';
+  if (progress === 'cancellation_requested') return 'CANCELLATION_REQUESTED';
+  if (progress === 'cancelled') return 'CANCELLED';
+  return 'COMPLETED';
+};
+
+export const normalizeEmergencyState = (saved: Partial<EmergencyState>): EmergencyState => {
+  const initial = createInitialState();
+  const profile = saved.profile && 'email' in saved.profile && 'southAfricanId' in saved.profile ? saved.profile as ClientProfile : null;
+  return {
+    ...initial,
+    ...saved,
+    version: 3,
+    profile,
+    profileSecurity: profile ? saved.profileSecurity ?? null : null,
+    registrationStatus: profile && saved.profileSecurity ? 'REGISTERED' : 'NOT_REGISTERED',
+    incidents: (saved.incidents ?? []).map((incident) => ({
+      ...incident,
+      status: incident.status ?? statusFromProgress(incident.progress),
+      notifiedStationIds: incident.notifiedStationIds ?? (incident.stationId ? [incident.stationId] : []),
+      searchStage: incident.searchStage ?? (incident.stationId ? 1 : 0),
+      escalationStatus: incident.escalationStatus ?? (incident.progress === 'waiting' ? 'INITIAL_STATION' : 'STOPPED'),
+    })),
+  };
+};
+
 export const readState = (code = activeCode() ?? 'LOCAL1'): EmergencyState => {
   try {
     const saved = storage()?.getItem(stateKey(code));
-    return saved ? (JSON.parse(saved) as EmergencyState) : createInitialState();
+    return saved ? normalizeEmergencyState(JSON.parse(saved) as Partial<EmergencyState>) : createInitialState();
   } catch { return createInitialState(); }
 };
 
@@ -176,7 +362,7 @@ const writeLocal = (code: string, state: EmergencyState) => {
 
 const mergePending = (state: EmergencyState, pending: EmergencyAction[]) => pending.reduce(applyEmergencyAction, state);
 
-export const receiveRemoteState = (code: string, state: EmergencyState) => writeLocal(code, mergePending(state, readQueue(code)));
+export const receiveRemoteState = (code: string, state: EmergencyState) => writeLocal(code, mergePending(normalizeEmergencyState(state), readQueue(code)));
 
 const uploadQueuedMedia = async (code: string, event: EmergencyAction): Promise<EmergencyAction> => {
   if (event.type !== 'add-information') return event;
@@ -250,7 +436,7 @@ export async function createSession(code = generateRoomCode()) {
 
 export async function joinSession(code: string) {
   const normalized = normalizeRoomCode(code);
-  if (normalized.length !== 6) throw new Error('Enter a six-character room code.');
+  if (normalized.length !== 6) throw new Error('Enter a six-character access code.');
   storage()?.setItem(ACTIVE_SESSION_KEY, normalized);
   const response = await fetch(`/api/sessions/${normalized}`, { cache: 'no-store' }).catch(() => null);
   if (response?.ok) {
@@ -258,7 +444,7 @@ export async function joinSession(code: string) {
     const record = await response.json() as SessionRecord;
     writeLocal(normalized, record.state);
   } else if (!storage()?.getItem(stateKey(normalized))) {
-    if (response && response.status === 404) throw new Error('That room could not be found.');
+    if (response && response.status === 404) throw new Error('That workspace could not be found.');
     remoteAvailable = false;
     writeLocal(normalized, createInitialState());
   }
@@ -287,6 +473,23 @@ export const sessionService = {
     return () => { window.removeEventListener('rapidlink-state', local); window.removeEventListener('storage', storageListener); channel?.removeEventListener('message', channelListener); channel?.close(); };
   },
   reset() { return commit(action('reset-session', {})); },
+  recoverEscalations() {
+    let state = readState();
+    const safetyLimit = Math.max(1, state.stations.length * Math.max(1, state.incidents.length));
+    for (let index = 0; index < safetyLimit; index += 1) {
+      const incident = state.incidents.find((item) => item.status === 'WAITING_FOR_RESPONDER' && item.nextEscalationAt && Date.parse(item.nextEscalationAt) <= Date.now());
+      if (!incident?.nextEscalationAt) break;
+      commit(action('escalate-incident', { incidentId: incident.id, expectedDeadline: incident.nextEscalationAt }));
+      state = readState();
+    }
+    return state;
+  },
+  recoverUnavailableIncidents() { return this.recoverEscalations(); },
+  saveProfile(profile: ClientProfile, security: CancellationPinRecord) { return commit(action('save-profile', { profile, security })); },
+  updateProfile(profile: ClientProfile) { return commit(action('update-profile', { profile })); },
+  changePin(security: CancellationPinRecord) { return commit(action('change-pin', { security })); },
+  recordPinFailure(lockedUntil?: string) { return commit(action('record-pin-failure', { lockedUntil })); },
+  clearPinFailures() { return commit(action('clear-pin-failures', {})); },
   createIncident(payload: { incidentId: string; service: ServiceType; location: CapturedLocation | null }) { return commit(action('create-incident', payload)); },
   submitIncident(incidentId: string) { return commit(action('submit-incident', { incidentId })); },
   updateIncidentLocation(incidentId: string, location: CapturedLocation, locationNote?: string) { return commit(action('update-location', { incidentId, location, locationNote })); },
@@ -312,4 +515,8 @@ export const sessionService = {
     return accepted?.assignedEmployeeId === employee.id ? { ok: true, incident: accepted, employee } : { ok: false, reason: 'assigned' };
   },
   updateIncidentProgress(incidentId: string, employeeId: string, progress: IncidentProgress) { return commit(action('update-progress', { incidentId, employeeId, progress })); },
+  cancelIncident(incidentId: string) { return commit(action('cancel-incident', { incidentId })); },
+  respondToCancellation(incidentId: string, employeeId: string, acknowledge: boolean) { return commit(action('respond-cancellation', { incidentId, employeeId, acknowledge })); },
+  requestCompletion(incidentId: string, employeeId: string) { return commit(action('request-completion', { incidentId, employeeId })); },
+  confirmHelpReceived(incidentId: string, received: boolean) { return commit(action('confirm-help-received', { incidentId, received })); },
 };

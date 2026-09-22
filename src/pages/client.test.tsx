@@ -35,4 +35,20 @@ describe('client emergency activation', () => {
     expect(readState().incidents).toHaveLength(1);
     await waitFor(() => expect(readState().offers.length).toBeGreaterThan(0));
   });
+
+  it('offers masked SMS and email recovery for a forgotten cancellation PIN', async () => {
+    render(<MemoryRouter><EmergencyProvider><ClientPage /></EmergencyProvider></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /^Police$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot PIN?' }));
+
+    expect(screen.getByRole('heading', { name: 'Reset cancellation PIN' })).toBeInTheDocument();
+    expect(screen.getByText('••• ••• 0147')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: /Email/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset instructions' }));
+
+    expect(screen.getByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
+    expect(screen.getByText(/na••••@example\.test/)).toBeInTheDocument();
+    expect(readState().incidents[0]?.status).not.toBe('CANCELLED');
+  });
 });

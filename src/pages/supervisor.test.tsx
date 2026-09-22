@@ -12,24 +12,33 @@ import SupervisorAnalyticsPage from './supervisor-analytics';
 describe('supervisor dashboard', () => {
   beforeEach(() => window.localStorage.clear());
 
-  it('shows meaningful employee columns and adds an employee', async () => {
+  it('shows meaningful responder columns and limits editable identity fields', async () => {
     render(<MemoryRouter><EmergencyProvider><SupervisorPage /></EmergencyProvider></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { name: 'Station team' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Employee' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Availability' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Record' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Responder' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Contact' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Dispatch status' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Record' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add employee' }));
-    const dialog = screen.getByRole('dialog', { name: 'Add employee' });
+    fireEvent.click(screen.getByRole('button', { name: 'Add responder' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add responder' });
     fireEvent.change(within(dialog).getByLabelText('Employee number'), { target: { value: 'P-9999' } });
     fireEvent.change(within(dialog).getByLabelText('Phone number'), { target: { value: '071 555 9999' } });
     fireEvent.change(within(dialog).getByLabelText('First name'), { target: { value: 'Test' } });
     fireEvent.change(within(dialog).getByLabelText('Surname'), { target: { value: 'Responder' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Add employee' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add responder' }));
 
     expect(readState().employees.some((employee) => employee.employeeNumber === 'P-9999')).toBe(true);
     expect(screen.getAllByText('Test Responder').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit responder' })[0]!);
+    const editDialog = screen.getByRole('dialog', { name: 'Edit responder' });
+    expect(within(editDialog).getByLabelText('Employee number')).toBeDisabled();
+    expect(within(editDialog).getByLabelText('Station')).toBeDisabled();
+    expect(within(editDialog).getByLabelText('Phone number')).toBeEnabled();
+    expect(within(editDialog).getByLabelText('Service')).toBeEnabled();
+    expect(within(editDialog).getByRole('checkbox', { name: /Receive emergency requests/ })).toBeEnabled();
   });
 
   it('groups shift times into one column and saves attendance', async () => {
@@ -37,10 +46,10 @@ describe('supervisor dashboard', () => {
 
     expect(await screen.findByRole('heading', { name: 'Attendance' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Shift' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Availability' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Dispatch status' })).toBeInTheDocument();
 
     fireEvent.change(screen.getAllByLabelText(/Attendance for/)[0]!, { target: { value: 'present' } });
-    fireEvent.click(screen.getAllByRole('button', { name: 'Save attendance' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: /Save attendance for/ })[0]!);
     expect(screen.getByRole('status')).toHaveTextContent('Attendance saved.');
   });
 
@@ -64,14 +73,14 @@ describe('supervisor dashboard', () => {
 
     render(<MemoryRouter><EmergencyProvider><SupervisorAnalyticsPage /></EmergencyProvider></MemoryRouter>);
 
-    expect(await screen.findByRole('heading', { name: 'Operations overview' })).toBeInTheDocument();
-    expect(screen.getByText(/Client identity, contact details, exact location/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Reports' })).toBeInTheDocument();
+    expect(screen.getByText(/Client identity and sensitive incident details are hidden/)).toBeInTheDocument();
     expect(screen.getAllByText(readState().incidents[0]!.reference).length).toBeGreaterThan(0);
     expect(screen.queryByText('Naledi Mokoena')).not.toBeInTheDocument();
     expect(screen.queryByText('0725550147')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'View operational record' })[0]!);
-    const dialog = screen.getByRole('dialog', { name: /Operational record/ });
+    fireEvent.click(screen.getAllByRole('button', { name: 'View report' })[0]!);
+    const dialog = screen.getByRole('dialog', { name: /Report/ });
     expect(within(dialog).getByRole('heading', { name: 'How it was handled' })).toBeInTheDocument();
     expect(within(dialog).queryByText('Naledi Mokoena')).not.toBeInTheDocument();
   });

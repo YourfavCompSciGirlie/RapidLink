@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 import { EmergencyProvider } from '@/features/emergency/emergency-context';
-import { sessionService } from '@/features/emergency/session-service';
+import { readState, sessionService } from '@/features/emergency/session-service';
 
 import ResponderMessagesPage from './messages';
 
@@ -29,20 +29,48 @@ describe('responder request dashboard', () => {
     sessionService.submitIncident('incident-responder-dashboard');
   });
 
-  it('shows a personal request queue with status and sorting controls', async () => {
+  it('shows the same SMS alert for every eligible responder', async () => {
+    const state = readState();
+    const offers = state.offers.filter((offer) => offer.incidentId === 'incident-responder-dashboard');
+    const recipients = offers.map((offer) => state.employees.find((employee) => employee.id === offer.employeeId)!);
     render(
       <MemoryRouter>
         <EmergencyProvider><ResponderMessagesPage /></EmergencyProvider>
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Requests' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'SMS alerts' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Filter by employee')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Open 1/ })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Sort requests' })).toHaveValue('proximity');
-    expect(screen.getByRole('link', { name: /Review request/ })).toBeInTheDocument();
+    expect(screen.getByText(`${offers.length} recipients`)).toBeInTheDocument();
+    expect(screen.getAllByText(state.incidents[0]!.reference, { exact: false })).toHaveLength(offers.length + 1);
+    expect(screen.getAllByRole('link', { name: /Open response link/ })).toHaveLength(offers.length);
+    for (const recipient of recipients) expect(screen.getByText(`${recipient.name} ${recipient.surname}`)).toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Sort requests' }), { target: { value: 'newest' } });
-    expect(screen.getByRole('combobox', { name: 'Sort requests' })).toHaveValue('newest');
+  it('orders awaiting incidents before completed incidents', async () => {
+    let state = readState();
+    const completedIncident = state.incidents.find((incident) => incident.id === 'incident-responder-dashboard')!;
+    const acceptedOffer = state.offers.find((offer) => offer.incidentId === completedIncident.id)!;
+    await sessionService.acceptIncident(acceptedOffer.id);
+    sessionService.updateIncidentProgress(completedIncident.id, acceptedOffer.employeeId, 'en_route');
+    sessionService.updateIncidentProgress(completedIncident.id, acceptedOffer.employeeId, 'arrived');
+    sessionService.requestCompletion(completedIncident.id, acceptedOffer.employeeId);
+    sessionService.confirmHelpReceived(completedIncident.id, true);
+
+    sessionService.createIncident({
+      incidentId: 'incident-new-awaiting',
+      service: 'police',
+      location: { latitude: -25.6045, longitude: 28.005, accuracy: 18, capturedAt: new Date().toISOString(), source: 'browser' },
+    });
+    sessionService.submitIncident('incident-new-awaiting');
+    state = readState();
+    const awaitingIncident = state.incidents.find((incident) => incident.id === 'incident-new-awaiting')!;
+
+    render(<MemoryRouter><EmergencyProvider><ResponderMessagesPage /></EmergencyProvider></MemoryRouter>);
+
+    const alertGroups = await screen.findAllByRole('region', { name: 'Police alert' });
+    expect(within(alertGroups[0]!).getAllByText(awaitingIncident.reference, { exact: false }).length).toBeGreaterThan(0);
+    expect(within(alertGroups.at(-1)!).getAllByText(completedIncident.reference, { exact: false }).length).toBeGreaterThan(0);
+    expect(within(alertGroups.at(-1)!).getAllByRole('article')[0]).toHaveTextContent(state.employees.find((employee) => employee.id === acceptedOffer.employeeId)!.name);
   });
 });

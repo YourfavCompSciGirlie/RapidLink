@@ -12,6 +12,7 @@
     { "source": "/responder", "destination": "/index.html" },
     { "source": "/responder/offers/:offerId", "destination": "/index.html" },
     { "source": "/supervisor", "destination": "/index.html" },
+    { "source": "/supervisor/analytics", "destination": "/index.html" },
     { "source": "/supervisor/employees", "destination": "/index.html" },
     { "source": "/supervisor/attendance", "destination": "/index.html" },
     { "source": "/dispatcher", "destination": "/index.html" },

@@ -52,7 +52,7 @@
   html { @apply min-h-full scroll-smooth; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: Arial, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 16px;
   }
   ::selection { @apply bg-red-100 text-red-950; }

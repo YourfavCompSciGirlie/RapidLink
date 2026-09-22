@@ -82,6 +82,30 @@ describe('emergency session reducer', () => {
     expect(state.offers.find((offer) => offer.id === second!.id)?.status).toBe('closed');
   });
 
+  it('records the responder handling lifecycle without client details in the audit trail', () => {
+    let state = registeredState();
+    state = apply(state, { id: 'create-audit', type: 'create-incident', payload: { incidentId: 'incident-audit', service: 'police', location } });
+    state = apply(state, { id: 'submit-audit', type: 'submit-incident', payload: { incidentId: 'incident-audit' } });
+    const offer = state.offers.find((item) => item.incidentId === 'incident-audit')!;
+    state = apply(state, { id: 'accept-audit', type: 'accept-offer', payload: { offerId: offer.id } });
+    state = apply(state, { id: 'en-route-audit', type: 'update-progress', payload: { incidentId: 'incident-audit', employeeId: offer.employeeId, progress: 'en_route' } });
+    state = apply(state, { id: 'arrived-audit', type: 'update-progress', payload: { incidentId: 'incident-audit', employeeId: offer.employeeId, progress: 'arrived' } });
+    state = apply(state, { id: 'request-close-audit', type: 'request-completion', payload: { incidentId: 'incident-audit', employeeId: offer.employeeId } });
+    state = apply(state, { id: 'confirm-close-audit', type: 'confirm-help-received', payload: { incidentId: 'incident-audit', received: true } });
+
+    const audit = state.audit.filter((entry) => entry.message.includes('RL--AUDIT'));
+    expect(audit.map((entry) => entry.type)).toEqual([
+      'incident-created',
+      'submitted',
+      'accepted',
+      'progress-en-route',
+      'progress-arrived',
+      'closure-requested',
+      'completed',
+    ]);
+    expect(audit.some((entry) => entry.message.includes('Naledi') || entry.message.includes('0725550147'))).toBe(false);
+  });
+
   it('preserves actions appended while synchronization is already running', async () => {
     let remoteState = registeredState();
     let version = 0;

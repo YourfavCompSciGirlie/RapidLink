@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 import { EmergencyProvider } from '@/features/emergency/emergency-context';
-import { readState } from '@/features/emergency/session-service';
+import { readState, sessionService } from '@/features/emergency/session-service';
 
 import AttendancePage from './attendance';
 import SupervisorPage from './supervisor';
+import SupervisorAnalyticsPage from './supervisor-analytics';
 
 describe('supervisor dashboard', () => {
   beforeEach(() => window.localStorage.clear());
@@ -41,5 +42,37 @@ describe('supervisor dashboard', () => {
     fireEvent.change(screen.getAllByLabelText(/Attendance for/)[0]!, { target: { value: 'present' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Save attendance' })[0]!);
     expect(screen.getByRole('status')).toHaveTextContent('Attendance saved.');
+  });
+
+  it('shows de-identified operational analytics and incident handling', async () => {
+    const timestamp = new Date().toISOString();
+    sessionService.saveProfile(
+      { id: 'client-private', name: 'Naledi', surname: 'Mokoena', email: 'naledi@example.test', southAfricanId: '9001015009087', phone: '0725550147', nextOfKin: { name: 'Refilwe Mokoena', phone: '0735550191' }, createdAt: timestamp, updatedAt: timestamp },
+      { salt: 'dGVzdA==', derivedHash: 'dGVzdA==', iterations: 1, failedAttempts: 0 },
+    );
+    sessionService.createIncident({
+      incidentId: 'incident-supervisor-log',
+      service: 'police',
+      location: { latitude: -25.6042, longitude: 28.0053, accuracy: 15, capturedAt: timestamp, source: 'browser' },
+    });
+    sessionService.submitIncident('incident-supervisor-log');
+    const state = readState();
+    const localEmployeeIds = new Set(state.employees.filter((employee) => employee.stationId === 'station-garankuwa').map((employee) => employee.id));
+    const offer = state.offers.find((item) => item.incidentId === 'incident-supervisor-log' && localEmployeeIds.has(item.employeeId));
+    expect(offer).toBeDefined();
+    await sessionService.acceptIncident(offer!.id);
+
+    render(<MemoryRouter><EmergencyProvider><SupervisorAnalyticsPage /></EmergencyProvider></MemoryRouter>);
+
+    expect(await screen.findByRole('heading', { name: 'Operations overview' })).toBeInTheDocument();
+    expect(screen.getByText(/Client identity, contact details, exact location/)).toBeInTheDocument();
+    expect(screen.getAllByText(readState().incidents[0]!.reference).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Naledi Mokoena')).not.toBeInTheDocument();
+    expect(screen.queryByText('0725550147')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'View operational record' })[0]!);
+    const dialog = screen.getByRole('dialog', { name: /Operational record/ });
+    expect(within(dialog).getByRole('heading', { name: 'How it was handled' })).toBeInTheDocument();
+    expect(within(dialog).queryByText('Naledi Mokoena')).not.toBeInTheDocument();
   });
 });

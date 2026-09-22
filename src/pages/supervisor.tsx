@@ -1,4 +1,4 @@
-import { CalendarCheck, Pencil, Plus, Search, ShieldCheck, UserRound, UserX } from 'lucide-react';
+import { BarChart3, CalendarCheck, Pencil, Plus, Search, ShieldCheck, UserRound, UserX } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -72,6 +72,7 @@ export default function SupervisorPage() {
           <div className="grid gap-2 p-4 sm:flex sm:justify-end sm:px-6">
             <Button onClick={() => setEditing('new')} className="min-h-12"><Plus className="h-4 w-4" /> Add employee</Button>
             <Button asChild variant="outline" className="min-h-12"><Link to="/supervisor/attendance"><CalendarCheck className="h-4 w-4" /> Attendance</Link></Button>
+            <Button asChild variant="outline" className="min-h-12"><Link to="/supervisor/analytics"><BarChart3 className="h-4 w-4" /> Analytics</Link></Button>
           </div>
         </header>
 

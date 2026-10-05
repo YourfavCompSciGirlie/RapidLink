@@ -53,7 +53,7 @@ Do not send a client's ID number, cancellation PIN material or next-of-kin detai
 
 `/api/cron/escalations` processes every due `WAITING_FOR_RESPONDER` incident and uses the same versioned action path as browser actions. It requires `CRON_SECRET` as a bearer token.
 
-Vercel Cron is configured as a one-minute recovery worker. A 30-second service-level requirement cannot be met by that one-minute schedule. Configure a trusted scheduler with 30-second support to call the same endpoint twice per minute. Supabase Cron supports sub-minute schedules.
+The Vercel Hobby plan only permits daily cron schedules, so `vercel.json` deliberately does not register this worker as a Vercel Cron Job. The deployed environment instead uses Supabase Cron to call the protected endpoint every 30 seconds. Keep the scheduler secret in a managed secret store and never expose it to browser code.
 
 ## Security debt that remains
 

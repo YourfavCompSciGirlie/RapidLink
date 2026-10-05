@@ -153,6 +153,12 @@ export interface ResponderMessage {
   employeeId: string;
   createdAt: string;
   readAt?: string;
+  provider?: 'simulated';
+  deliveryStatus?: 'simulated' | 'queued' | 'sent' | 'failed';
+  recipientPhone?: string;
+  body?: string;
+  responsePath?: string;
+  sentAt?: string;
 }
 
 export interface AuditEvent {

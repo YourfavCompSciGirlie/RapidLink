@@ -1,4 +1,4 @@
-import type { EmergencyState, SessionRecord } from '../features/emergency/types.js';
+import type { EmergencyAction, EmergencyState, SessionRecord } from '../features/emergency/types.js';
 
 interface SessionRow {
   id: string;
@@ -11,7 +11,7 @@ interface SessionRow {
 }
 
 const url = (process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL)?.replace(/\/$/, '');
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const supabaseConfigured = Boolean(url && serviceKey);
 
@@ -74,6 +74,46 @@ export async function compareAndSwapSession(record: SessionRecord, state: Emerge
   if (!response.ok) throw new Error(`Session update failed: ${response.status}`);
   const rows = await response.json() as SessionRow[];
   return rows[0] ? toRecord(rows[0]) : null;
+}
+
+export async function commitSessionAction(record: SessionRecord, state: EmergencyState, event: EmergencyAction): Promise<SessionRecord | null> {
+  if (!supabaseConfigured) return null;
+  const response = await fetch(`${url}/rest/v1/rpc/rapidlink_commit_session_action`, {
+    method: 'POST',
+    headers: headers({ 'content-type': 'application/json' }),
+    body: JSON.stringify({
+      p_code: record.code,
+      p_expected_version: record.version,
+      p_state: state,
+      p_action_id: event.id,
+      p_action_type: event.type,
+      p_action_payload: event.payload,
+    }),
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`Session action commit failed: ${response.status}`);
+  const rows = await response.json() as SessionRow[];
+  return rows[0] ? toRecord(rows[0]) : null;
+}
+
+export async function listDueSessions(at = new Date()): Promise<SessionRecord[]> {
+  if (!supabaseConfigured) return [];
+  const due = encodeURIComponent(at.toISOString());
+  const incidentResponse = await fetch(
+    `${url}/rest/v1/rapidlink_incidents?status=eq.WAITING_FOR_RESPONDER&next_escalation_at=lte.${due}&select=session_id`,
+    { headers: headers(), cache: 'no-store' },
+  );
+  if (!incidentResponse.ok) throw new Error(`Due incident lookup failed: ${incidentResponse.status}`);
+  const incidentRows = await incidentResponse.json() as Array<{ session_id: string }>;
+  const sessionIds = [...new Set(incidentRows.map((row) => row.session_id))];
+  if (!sessionIds.length) return [];
+  const idFilter = encodeURIComponent(`(${sessionIds.join(',')})`);
+  const sessionResponse = await fetch(
+    `${url}/rest/v1/rapidlink_sessions?id=in.${idFilter}&expires_at=gt.${due}&select=*`,
+    { headers: headers(), cache: 'no-store' },
+  );
+  if (!sessionResponse.ok) throw new Error(`Due session lookup failed: ${sessionResponse.status}`);
+  return (await sessionResponse.json() as SessionRow[]).map(toRecord);
 }
 
 export async function uploadAttachment(code: string, file: { name: string; type: string; bytes: Uint8Array }) {

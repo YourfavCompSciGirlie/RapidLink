@@ -13,6 +13,7 @@ import ResponderPage from '@/pages/responder';
 import ResponderOfferPage from '@/pages/responder-offer';
 import RegisterPage from '@/pages/register';
 import SupervisorPage from '@/pages/supervisor';
+import SupervisorAnalyticsPage from '@/pages/supervisor-analytics';
 
 function ClientOnly({ children }: { children: React.ReactNode }) {
   const { ready, state } = useEmergency();
@@ -41,6 +42,7 @@ export function App() {
           <Route path="/responder" element={<ResponderPage />} />
           <Route path="/responder/offers/:offerId" element={<ResponderOfferPage />} />
           <Route path="/supervisor" element={<SupervisorPage />} />
+          <Route path="/supervisor/analytics" element={<SupervisorAnalyticsPage />} />
           <Route path="/supervisor/employees" element={<Navigate to="/supervisor" replace />} />
           <Route path="/supervisor/attendance" element={<AttendancePage />} />
           <Route path="/dispatcher" element={<Navigate to="/supervisor" replace />} />
